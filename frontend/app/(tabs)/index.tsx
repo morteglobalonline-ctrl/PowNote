@@ -107,8 +107,16 @@ export default function HomeScreen() {
     switch (type) {
       case 'cat': return 'paw';
       case 'bird': return 'leaf';
+      case 'other': return 'heart';
       default: return 'paw';
     }
+  };
+
+  const getPetDisplayType = (pet: Pet) => {
+    if (pet.pet_type === 'other' && pet.custom_pet_type) {
+      return pet.custom_pet_type.charAt(0).toUpperCase() + pet.custom_pet_type.slice(1);
+    }
+    return pet.pet_type.charAt(0).toUpperCase() + pet.pet_type.slice(1);
   };
 
   const getCategoryIcon = (category: string) => {
