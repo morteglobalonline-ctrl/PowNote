@@ -39,6 +39,7 @@ class Pet(BaseModel):
     custom_pet_type: Optional[str] = None  # For "other" type: Rabbit, Turtle, etc.
     breed: Optional[str] = None
     weight: Optional[float] = None  # Weight in pounds (lb)
+    gender: Optional[str] = None  # male or female
     photo: Optional[str] = None  # Base64 image
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -49,6 +50,7 @@ class PetCreate(BaseModel):
     custom_pet_type: Optional[str] = None
     breed: Optional[str] = None
     weight: Optional[float] = None
+    gender: Optional[str] = None
     photo: Optional[str] = None
 
 class PetUpdate(BaseModel):
