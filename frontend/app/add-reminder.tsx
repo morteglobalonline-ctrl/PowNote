@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -27,6 +29,20 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Alarm sounds data
+const ALARM_SOUNDS = [
+  { id: 'dog', name: 'Dog', icon: 'paw' },
+  { id: 'cat', name: 'Cat', icon: 'paw' },
+  { id: 'wolf', name: 'Wolf', icon: 'moon' },
+  { id: 'bird', name: 'Bird', icon: 'leaf' },
+  { id: 'lion', name: 'Lion', icon: 'shield' },
+  { id: 'rooster', name: 'Rooster', icon: 'sunny' },
+  { id: 'owl', name: 'Owl', icon: 'moon' },
+  { id: 'dolphin', name: 'Dolphin', icon: 'water' },
+  { id: 'frog', name: 'Frog', icon: 'leaf' },
+  { id: 'cricket', name: 'Cricket', icon: 'musical-notes' },
+];
+
 export default function AddReminderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -35,10 +51,12 @@ export default function AddReminderScreen() {
   const [petName, setPetName] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [reminderTime, setReminderTime] = useState('');
+  const [selectedTime, setSelectedTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [category, setCategory] = useState('general');
   const [isRecurring, setIsRecurring] = useState(true);
   const [selectedDays, setSelectedDays] = useState([0, 1, 2, 3, 4, 5, 6]);
+  const [selectedSound, setSelectedSound] = useState(ALARM_SOUNDS[0]);
 
   const categories = [
     { id: 'medication', label: 'Medication', icon: 'medical', color: '#EC4899' },
@@ -60,7 +78,29 @@ export default function AddReminderScreen() {
   useEffect(() => {
     loadPet();
     requestNotificationPermission();
+    // Set default time to current time rounded to nearest 5 minutes
+    const now = new Date();
+    now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5);
+    now.setSeconds(0);
+    setSelectedTime(now);
   }, []);
+
+  // Load selected sound from navigation params
+  useFocusEffect(
+    useCallback(() => {
+      const loadSelectedSound = async () => {
+        const soundId = await AsyncStorage.getItem('selectedAlarmSound');
+        if (soundId) {
+          const sound = ALARM_SOUNDS.find(s => s.id === soundId);
+          if (sound) {
+            setSelectedSound(sound);
+          }
+          await AsyncStorage.removeItem('selectedAlarmSound');
+        }
+      };
+      loadSelectedSound();
+    }, [])
+  );
 
   const loadPet = async () => {
     const savedPet = await AsyncStorage.getItem('currentPet');
@@ -81,14 +121,6 @@ export default function AddReminderScreen() {
     }
   };
 
-  const formatTimeInput = (text: string) => {
-    const cleaned = text.replace(/[^0-9]/g, '');
-    let formatted = '';
-    if (cleaned.length > 0) formatted = cleaned.substring(0, 2);
-    if (cleaned.length > 2) formatted += ':' + cleaned.substring(2, 4);
-    return formatted;
-  };
-
   const toggleDay = (dayId: number) => {
     if (selectedDays.includes(dayId)) {
       if (selectedDays.length > 1) {
@@ -99,20 +131,43 @@ export default function AddReminderScreen() {
     }
   };
 
+  const formatTime = (date: Date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    return `${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
+  const getTimeString = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const onTimeChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (date) {
+      setSelectedTime(date);
+    }
+  };
+
   const scheduleNotification = async (reminder: any) => {
     const [hours, minutes] = reminder.reminder_time.split(':').map(Number);
     
     if (isRecurring) {
-      // Schedule for each selected day
       for (const day of selectedDays) {
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `${petName}: ${reminder.title}`,
             body: reminder.description || `Time for ${reminder.title}!`,
-            data: { reminderId: reminder.id },
+            data: { reminderId: reminder.id, sound: selectedSound.id },
           },
           trigger: {
-            weekday: day + 1, // expo uses 1-7 for Sunday-Saturday
+            weekday: day + 1,
             hour: hours,
             minute: minutes,
             repeats: true,
@@ -120,7 +175,6 @@ export default function AddReminderScreen() {
         });
       }
     } else {
-      // One-time notification
       const now = new Date();
       const notificationDate = new Date();
       notificationDate.setHours(hours, minutes, 0, 0);
@@ -133,7 +187,7 @@ export default function AddReminderScreen() {
         content: {
           title: `${petName}: ${reminder.title}`,
           body: reminder.description || `Time for ${reminder.title}!`,
-          data: { reminderId: reminder.id },
+          data: { reminderId: reminder.id, sound: selectedSound.id },
         },
         trigger: notificationDate,
       });
@@ -141,20 +195,14 @@ export default function AddReminderScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim() || !reminderTime.trim()) {
-      Alert.alert('Missing Info', 'Please enter a title and time');
-      return;
-    }
-
-    // Validate time format
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(reminderTime)) {
-      Alert.alert('Invalid Time', 'Please enter time in HH:MM format');
+    if (!title.trim()) {
+      Alert.alert('Missing Info', 'Please enter a title');
       return;
     }
 
     setLoading(true);
     try {
+      const reminderTime = getTimeString(selectedTime);
       const response = await fetch(`${API_URL}/api/reminders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,7 +220,7 @@ export default function AddReminderScreen() {
       if (response.ok) {
         const reminder = await response.json();
         await scheduleNotification(reminder);
-        Alert.alert('Success', 'Reminder created and notifications scheduled!');
+        Alert.alert('Success', 'Reminder created!');
         router.back();
       } else {
         Alert.alert('Error', 'Could not create reminder');
@@ -182,6 +230,10 @@ export default function AddReminderScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openSoundSelection = () => {
+    router.push('/alarm-sounds');
   };
 
   return (
@@ -224,17 +276,121 @@ export default function AddReminderScreen() {
           />
         </View>
 
+        {/* Time Picker */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Time</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="HH:MM (24-hour format)"
-            placeholderTextColor="#9CA3AF"
-            value={reminderTime}
-            onChangeText={(text) => setReminderTime(formatTimeInput(text))}
-            keyboardType="numeric"
-            maxLength={5}
+          <TouchableOpacity
+            style={styles.timePickerButton}
+            onPress={() => setShowTimePicker(true)}
+          >
+            <Ionicons name="time-outline" size={24} color="#8B5CF6" />
+            <Text style={styles.timeText}>{formatTime(selectedTime)}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* iOS inline picker */}
+        {Platform.OS === 'ios' && showTimePicker && (
+          <View style={styles.iosPickerContainer}>
+            <View style={styles.iosPickerHeader}>
+              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                <Text style={styles.iosPickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={selectedTime}
+              mode="time"
+              display="spinner"
+              onChange={onTimeChange}
+              style={styles.iosPicker}
+            />
+          </View>
+        )}
+
+        {/* Android picker modal */}
+        {Platform.OS === 'android' && showTimePicker && (
+          <DateTimePicker
+            value={selectedTime}
+            mode="time"
+            display="default"
+            onChange={onTimeChange}
           />
+        )}
+
+        {/* Web fallback time picker */}
+        {Platform.OS === 'web' && showTimePicker && (
+          <Modal
+            visible={showTimePicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowTimePicker(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowTimePicker(false)}
+            >
+              <View style={styles.webPickerContainer}>
+                <Text style={styles.webPickerTitle}>Select Time</Text>
+                <View style={styles.webTimeInputs}>
+                  <TextInput
+                    style={styles.webTimeInput}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="HH"
+                    value={selectedTime.getHours().toString().padStart(2, '0')}
+                    onChangeText={(text) => {
+                      const hours = parseInt(text) || 0;
+                      if (hours >= 0 && hours <= 23) {
+                        const newTime = new Date(selectedTime);
+                        newTime.setHours(hours);
+                        setSelectedTime(newTime);
+                      }
+                    }}
+                  />
+                  <Text style={styles.webTimeSeparator}>:</Text>
+                  <TextInput
+                    style={styles.webTimeInput}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="MM"
+                    value={selectedTime.getMinutes().toString().padStart(2, '0')}
+                    onChangeText={(text) => {
+                      const minutes = parseInt(text) || 0;
+                      if (minutes >= 0 && minutes <= 59) {
+                        const newTime = new Date(selectedTime);
+                        newTime.setMinutes(minutes);
+                        setSelectedTime(newTime);
+                      }
+                    }}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.webPickerDoneButton}
+                  onPress={() => setShowTimePicker(false)}
+                >
+                  <Text style={styles.webPickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
+        {/* Alarm Sound Selection */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Alarm Sound</Text>
+          <TouchableOpacity
+            style={styles.soundSelectButton}
+            onPress={openSoundSelection}
+          >
+            <View style={styles.soundSelectLeft}>
+              <View style={styles.soundIconContainer}>
+                <Ionicons name={selectedSound.icon as any} size={20} color="#8B5CF6" />
+              </View>
+              <Text style={styles.soundName}>{selectedSound.name}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.inputGroup}>
@@ -369,6 +525,125 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    color: '#1F2937',
+  },
+  timePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  timeText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  iosPickerContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  iosPickerDone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  iosPicker: {
+    height: 180,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webPickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: 280,
+    alignItems: 'center',
+  },
+  webPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 20,
+  },
+  webTimeInputs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  webTimeInput: {
+    width: 70,
+    height: 60,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    fontSize: 28,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#1F2937',
+  },
+  webTimeSeparator: {
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginHorizontal: 8,
+  },
+  webPickerDoneButton: {
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 12,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+  },
+  webPickerDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  soundSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  soundSelectLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  soundIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  soundName: {
+    fontSize: 16,
+    fontWeight: '500',
     color: '#1F2937',
   },
   categoriesContainer: {
