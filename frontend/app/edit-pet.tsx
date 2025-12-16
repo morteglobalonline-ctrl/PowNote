@@ -43,6 +43,7 @@ export default function EditPetScreen() {
   const [customPetType, setCustomPetType] = useState('');
   const [breed, setBreed] = useState('');
   const [weight, setWeight] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
 
   const petTypes = [
