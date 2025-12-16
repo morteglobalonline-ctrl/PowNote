@@ -21,7 +21,9 @@ interface Pet {
   name: string;
   birth_date: string;
   pet_type: string;
+  custom_pet_type?: string;
   breed?: string;
+  weight?: number;
   photo?: string;
 }
 
