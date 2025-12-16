@@ -617,6 +617,33 @@ const styles = StyleSheet.create({
   petTypeTextActive: {
     color: '#FFFFFF',
   },
+  genderContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  genderButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    gap: 8,
+  },
+  genderButtonActive: {
+    backgroundColor: '#8B5CF6',
+  },
+  genderText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#8B5CF6',
+  },
+  genderTextActive: {
+    color: '#FFFFFF',
+  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
