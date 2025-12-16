@@ -27,6 +27,7 @@ interface Pet {
   custom_pet_type?: string;
   breed?: string;
   weight?: number;
+  gender?: string;
   photo?: string;
 }
 
