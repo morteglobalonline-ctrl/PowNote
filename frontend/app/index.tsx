@@ -156,6 +156,7 @@ export default function WelcomeScreen() {
     setCustomPetType('');
     setBreed('');
     setWeight('');
+    setGender(null);
   };
 
   if (loading) {
