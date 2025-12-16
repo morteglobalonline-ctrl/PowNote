@@ -60,6 +60,7 @@ class PetUpdate(BaseModel):
     custom_pet_type: Optional[str] = None
     breed: Optional[str] = None
     weight: Optional[float] = None
+    gender: Optional[str] = None
     photo: Optional[str] = None
 
 class ChecklistItem(BaseModel):
