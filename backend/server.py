@@ -414,10 +414,15 @@ async def chat_with_ai(request: ChatRequest):
         pet = await db.pets.find_one({"id": request.pet_id})
         if pet:
             pet_obj = Pet(**pet)
-            pet_context = f"\n\nCurrent pet context: {pet_obj.name} is a {pet_obj.pet_type}"
+            # Build pet type string (use custom type for "other")
+            pet_type_str = pet_obj.custom_pet_type if pet_obj.pet_type == "other" and pet_obj.custom_pet_type else pet_obj.pet_type
+            pet_context = f"\n\nCurrent pet context: {pet_obj.name} is a {pet_type_str}"
             if pet_obj.breed:
                 pet_context += f" ({pet_obj.breed})"
-            pet_context += f", born on {pet_obj.birth_date}."
+            pet_context += f", born on {pet_obj.birth_date}"
+            if pet_obj.weight:
+                pet_context += f", weighing {pet_obj.weight} lb"
+            pet_context += "."
     
     # Get chat history
     history = await db.chat_messages.find(
