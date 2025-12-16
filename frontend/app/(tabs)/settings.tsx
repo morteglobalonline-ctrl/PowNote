@@ -236,7 +236,7 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+        <TouchableOpacity style={styles.menuItem} onPress={handleSwitchPet}>
           <View style={styles.menuLeft}>
             <View style={[styles.menuIcon, { backgroundColor: '#FEE2E2' }]}>
               <Ionicons name="swap-horizontal" size={20} color="#EF4444" />
