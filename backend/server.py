@@ -419,7 +419,9 @@ async def chat_with_ai(request: ChatRequest):
             pet_obj = Pet(**pet)
             # Build pet type string (use custom type for "other")
             pet_type_str = pet_obj.custom_pet_type if pet_obj.pet_type == "other" and pet_obj.custom_pet_type else pet_obj.pet_type
-            pet_context = f"\n\nCurrent pet context: {pet_obj.name} is a {pet_type_str}"
+            # Build gender string
+            gender_str = f" {pet_obj.gender}" if pet_obj.gender else ""
+            pet_context = f"\n\nCurrent pet context: {pet_obj.name} is a{gender_str} {pet_type_str}"
             if pet_obj.breed:
                 pet_context += f" ({pet_obj.breed})"
             pet_context += f", born on {pet_obj.birth_date}"
