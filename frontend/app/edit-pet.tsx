@@ -68,6 +68,7 @@ export default function EditPetScreen() {
       setCustomPetType(petData.custom_pet_type || '');
       setBreed(petData.breed || '');
       setWeight(petData.weight ? String(petData.weight) : '');
+      setGender(petData.gender || null);
       setPhoto(petData.photo || null);
     }
   };
