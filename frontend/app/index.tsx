@@ -45,6 +45,7 @@ export default function WelcomeScreen() {
   const [customPetType, setCustomPetType] = useState('');
   const [breed, setBreed] = useState('');
   const [weight, setWeight] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
