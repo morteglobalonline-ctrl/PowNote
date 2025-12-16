@@ -108,13 +108,18 @@ export default function SettingsScreen() {
       {
         text: 'Switch',
         onPress: async () => {
-          await AsyncStorage.removeItem('currentPet');
-          await AsyncStorage.removeItem('chatSessionId');
-          // Use dismissAll to clear the stack and navigate to root
-          while (router.canGoBack()) {
-            router.back();
+          try {
+            await AsyncStorage.removeItem('currentPet');
+            await AsyncStorage.removeItem('chatSessionId');
+            // Navigate to the root entry screen
+            router.dismissAll();
+            router.replace('/');
+          } catch (e) {
+            // Fallback navigation
+            await AsyncStorage.removeItem('currentPet');
+            await AsyncStorage.removeItem('chatSessionId');
+            router.replace('/');
           }
-          router.replace('/');
         },
       },
     ]);
