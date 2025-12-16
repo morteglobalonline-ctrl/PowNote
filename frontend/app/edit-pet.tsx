@@ -25,7 +25,9 @@ interface Pet {
   name: string;
   birth_date: string;
   pet_type: string;
+  custom_pet_type?: string;
   breed?: string;
+  weight?: number;
   photo?: string;
 }
 
@@ -37,7 +39,9 @@ export default function EditPetScreen() {
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [petType, setPetType] = useState('dog');
+  const [customPetType, setCustomPetType] = useState('');
   const [breed, setBreed] = useState('');
+  const [weight, setWeight] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
 
   const petTypes = [
@@ -59,7 +63,9 @@ export default function EditPetScreen() {
       setName(petData.name);
       setBirthDate(petData.birth_date);
       setPetType(petData.pet_type);
+      setCustomPetType(petData.custom_pet_type || '');
       setBreed(petData.breed || '');
+      setWeight(petData.weight ? String(petData.weight) : '');
       setPhoto(petData.photo || null);
     }
   };
@@ -109,7 +115,9 @@ export default function EditPetScreen() {
           name: name.trim(),
           birth_date: birthDate,
           pet_type: petType,
+          custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
           breed: breed.trim() || null,
+          weight: weight ? parseFloat(weight) : null,
           photo: photo,
         }),
       });
@@ -197,7 +205,7 @@ export default function EditPetScreen() {
         </TouchableOpacity>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Pet Name</Text>
+          <Text style={styles.label}>Pet Name *</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter name"
@@ -209,7 +217,7 @@ export default function EditPetScreen() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Birth Date</Text>
+          <Text style={styles.label}>Birth Date *</Text>
           <TextInput
             style={styles.input}
             placeholder="YYYY-MM-DD"
@@ -251,6 +259,21 @@ export default function EditPetScreen() {
           </View>
         </View>
 
+        {/* Custom pet type - only for "Other" */}
+        {petType === 'other' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Pet Type</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Rabbit, Turtle, Hamster"
+              placeholderTextColor="#9CA3AF"
+              value={customPetType}
+              onChangeText={setCustomPetType}
+              autoCapitalize="words"
+            />
+          </View>
+        )}
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Breed (Optional)</Text>
           <TextInput
@@ -261,6 +284,21 @@ export default function EditPetScreen() {
             onChangeText={setBreed}
             autoCapitalize="words"
           />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Weight (Optional)</Text>
+          <View style={styles.weightInputContainer}>
+            <TextInput
+              style={styles.weightInput}
+              placeholder="Enter weight"
+              placeholderTextColor="#9CA3AF"
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="decimal-pad"
+            />
+            <Text style={styles.weightUnit}>lb</Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -361,6 +399,26 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: '#1F2937',
+  },
+  weightInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+  },
+  weightInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  weightUnit: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   petTypeContainer: {
     flexDirection: 'row',
