@@ -102,7 +102,7 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleLogout = async () => {
+  const handleSwitchPet = async () => {
     Alert.alert('Switch Pet', 'Do you want to switch to a different pet?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -110,6 +110,10 @@ export default function SettingsScreen() {
         onPress: async () => {
           await AsyncStorage.removeItem('currentPet');
           await AsyncStorage.removeItem('chatSessionId');
+          // Use dismissAll to clear the stack and navigate to root
+          while (router.canGoBack()) {
+            router.back();
+          }
           router.replace('/');
         },
       },
