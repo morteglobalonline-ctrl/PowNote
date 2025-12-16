@@ -179,8 +179,9 @@ export default function HomeScreen() {
         <View style={styles.petInfo}>
           <Text style={styles.petName}>{pet.name}</Text>
           <Text style={styles.petDetails}>
-            {pet.pet_type.charAt(0).toUpperCase() + pet.pet_type.slice(1)}
-            {pet.breed ? ` • ${pet.breed}` : ''}
+            {getPetDisplayType(pet)}
+            {pet.breed ? ` \u2022 ${pet.breed}` : ''}
+            {pet.weight ? ` \u2022 ${pet.weight} lb` : ''}
           </Text>
           <Text style={styles.petAge}>{getPetAge(pet.birth_date)}</Text>
         </View>
