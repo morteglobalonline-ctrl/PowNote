@@ -21,6 +21,7 @@ export default function RootLayout() {
         <Stack.Screen name="add-checklist" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add-vet-visit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add-reminder" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="alarm-sounds" options={{ presentation: 'card' }} />
       </Stack>
     </SafeAreaProvider>
   );
