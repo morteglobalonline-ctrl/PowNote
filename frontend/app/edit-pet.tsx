@@ -121,6 +121,7 @@ export default function EditPetScreen() {
           custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
           breed: breed.trim() || null,
           weight: weight ? parseFloat(weight) : null,
+          gender: gender,
           photo: photo,
         }),
       });
