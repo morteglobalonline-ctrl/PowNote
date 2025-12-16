@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,66 +12,64 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
+interface Pet {
+  id: string;
+  name: string;
+  birth_date: string;
+  pet_type: string;
+  custom_pet_type?: string;
+  breed?: string;
+  weight?: number;
+  photo?: string;
+}
+
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState<'welcome' | 'access' | 'new'>('welcome');
+  const [mode, setMode] = useState<'list' | 'new'>('list');
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  
+  // New pet form
   const [petName, setPetName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [petType, setPetType] = useState('dog');
-  const [loading, setLoading] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [customPetType, setCustomPetType] = useState('');
+  const [breed, setBreed] = useState('');
+  const [weight, setWeight] = useState('');
 
-  useEffect(() => {
-    checkExistingAccess();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadPets();
+    }, [])
+  );
 
-  const checkExistingAccess = async () => {
-    try {
-      const savedPet = await AsyncStorage.getItem('currentPet');
-      if (savedPet) {
-        router.replace('/(tabs)');
-      }
-    } catch (e) {
-      console.log('No saved access');
-    } finally {
-      setCheckingAccess(false);
-    }
-  };
-
-  const handleAccess = async () => {
-    if (!petName.trim() || !birthDate.trim()) {
-      Alert.alert('Missing Info', 'Please enter pet name and birth date');
-      return;
-    }
-
+  const loadPets = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pet_name: petName, birth_date: birthDate }),
-      });
-
+      const response = await fetch(`${API_URL}/api/pets`);
       if (response.ok) {
         const data = await response.json();
-        await AsyncStorage.setItem('currentPet', JSON.stringify(data.pet));
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Not Found', 'Pet not found. Check the name and birth date, or create a new profile.');
+        setPets(data);
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not connect to server');
+      console.error('Error loading pets:', e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectPet = async (pet: Pet) => {
+    await AsyncStorage.setItem('currentPet', JSON.stringify(pet));
+    router.replace('/(tabs)');
   };
 
   const handleCreatePet = async () => {
@@ -87,15 +85,18 @@ export default function WelcomeScreen() {
       return;
     }
 
-    setLoading(true);
+    setCreating(true);
     try {
       const response = await fetch(`${API_URL}/api/pets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: petName,
+          name: petName.trim(),
           birth_date: birthDate,
           pet_type: petType,
+          custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
+          breed: breed.trim() || null,
+          weight: weight ? parseFloat(weight) : null,
         }),
       });
 
@@ -109,33 +110,34 @@ export default function WelcomeScreen() {
     } catch (e) {
       Alert.alert('Error', 'Could not connect to server');
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
   const formatDateInput = (text: string) => {
-    // Auto-format as user types
     const cleaned = text.replace(/[^0-9]/g, '');
     let formatted = '';
-    if (cleaned.length > 0) {
-      formatted = cleaned.substring(0, 4);
-    }
-    if (cleaned.length > 4) {
-      formatted += '-' + cleaned.substring(4, 6);
-    }
-    if (cleaned.length > 6) {
-      formatted += '-' + cleaned.substring(6, 8);
-    }
+    if (cleaned.length > 0) formatted = cleaned.substring(0, 4);
+    if (cleaned.length > 4) formatted += '-' + cleaned.substring(4, 6);
+    if (cleaned.length > 6) formatted += '-' + cleaned.substring(6, 8);
     return formatted;
   };
 
-  if (checkingAccess) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
-      </View>
-    );
-  }
+  const getPetDisplayType = (pet: Pet) => {
+    if (pet.pet_type === 'other' && pet.custom_pet_type) {
+      return pet.custom_pet_type.charAt(0).toUpperCase() + pet.custom_pet_type.slice(1);
+    }
+    return pet.pet_type.charAt(0).toUpperCase() + pet.pet_type.slice(1);
+  };
+
+  const getPetIcon = (type: string) => {
+    switch (type) {
+      case 'cat': return 'paw';
+      case 'bird': return 'leaf';
+      case 'other': return 'heart';
+      default: return 'paw';
+    }
+  };
 
   const petTypes = [
     { id: 'dog', icon: 'paw', label: 'Dog' },
@@ -143,6 +145,23 @@ export default function WelcomeScreen() {
     { id: 'bird', icon: 'leaf', label: 'Bird' },
     { id: 'other', icon: 'heart', label: 'Other' },
   ];
+
+  const resetForm = () => {
+    setPetName('');
+    setBirthDate('');
+    setPetType('dog');
+    setCustomPetType('');
+    setBreed('');
+    setWeight('');
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -162,82 +181,58 @@ export default function WelcomeScreen() {
           <Text style={styles.tagline}>Your pet's care companion</Text>
         </View>
 
-        {mode === 'welcome' && (
-          <View style={styles.welcomeContainer}>
+        {mode === 'list' && (
+          <View style={styles.listContainer}>
+            {pets.length === 0 ? (
+              // No pets - show only Create button
+              <View style={styles.emptyState}>
+                <Ionicons name="paw-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyTitle}>No pets yet</Text>
+                <Text style={styles.emptySubtitle}>Add your first pet to get started</Text>
+              </View>
+            ) : (
+              // Show pet list
+              <>
+                <Text style={styles.listTitle}>Your Pets</Text>
+                {pets.map((pet) => (
+                  <TouchableOpacity
+                    key={pet.id}
+                    style={styles.petCard}
+                    onPress={() => selectPet(pet)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.petCardLeft}>
+                      {pet.photo ? (
+                        <Image source={{ uri: pet.photo }} style={styles.petCardImage} />
+                      ) : (
+                        <View style={styles.petCardImagePlaceholder}>
+                          <Ionicons name={getPetIcon(pet.pet_type)} size={28} color="#8B5CF6" />
+                        </View>
+                      )}
+                      <View style={styles.petCardInfo}>
+                        <Text style={styles.petCardName}>{pet.name}</Text>
+                        <Text style={styles.petCardType}>
+                          {getPetDisplayType(pet)}
+                          {pet.breed ? ` \u2022 ${pet.breed}` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {/* Create New Pet Button - always visible */}
             <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => setMode('access')}
-            >
-              <Ionicons name="log-in-outline" size={24} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Access My Pet</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => setMode('new')}
-            >
-              <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
-              <Text style={styles.secondaryButtonText}>Add New Pet</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {mode === 'access' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Access Your Pet</Text>
-            <Text style={styles.formSubtitle}>
-              Enter your pet's name and birth date
-            </Text>
-
-            <View style={styles.inputContainer}>
-              <Ionicons name="paw" size={20} color="#8B5CF6" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Pet Name"
-                placeholderTextColor="#A0A0A0"
-                value={petName}
-                onChangeText={setPetName}
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Ionicons name="calendar" size={20} color="#8B5CF6" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Birth Date (YYYY-MM-DD)"
-                placeholderTextColor="#A0A0A0"
-                value={birthDate}
-                onChangeText={(text) => setBirthDate(formatDateInput(text))}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.disabledButton]}
-              onPress={handleAccess}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
-                  <Text style={styles.primaryButtonText}>Continue</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.linkButton}
+              style={styles.createButton}
               onPress={() => {
-                setMode('welcome');
-                setPetName('');
-                setBirthDate('');
+                resetForm();
+                setMode('new');
               }}
             >
-              <Text style={styles.linkText}>Back</Text>
+              <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
+              <Text style={styles.createButtonText}>Create New Pet</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -253,7 +248,7 @@ export default function WelcomeScreen() {
               <Ionicons name="paw" size={20} color="#8B5CF6" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Pet Name"
+                placeholder="Pet Name *"
                 placeholderTextColor="#A0A0A0"
                 value={petName}
                 onChangeText={setPetName}
@@ -265,7 +260,7 @@ export default function WelcomeScreen() {
               <Ionicons name="calendar" size={20} color="#8B5CF6" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Birth Date (YYYY-MM-DD)"
+                placeholder="Birth Date (YYYY-MM-DD) *"
                 placeholderTextColor="#A0A0A0"
                 value={birthDate}
                 onChangeText={(text) => setBirthDate(formatDateInput(text))}
@@ -274,7 +269,7 @@ export default function WelcomeScreen() {
               />
             </View>
 
-            <Text style={styles.petTypeLabel}>Pet Type</Text>
+            <Text style={styles.fieldLabel}>Pet Type</Text>
             <View style={styles.petTypeContainer}>
               {petTypes.map((type) => (
                 <TouchableOpacity
@@ -287,7 +282,7 @@ export default function WelcomeScreen() {
                 >
                   <Ionicons
                     name={type.icon as any}
-                    size={24}
+                    size={20}
                     color={petType === type.id ? '#FFFFFF' : '#8B5CF6'}
                   />
                   <Text
@@ -302,12 +297,54 @@ export default function WelcomeScreen() {
               ))}
             </View>
 
+            {/* Custom pet type input - only show when "Other" is selected */}
+            {petType === 'other' && (
+              <View style={styles.inputContainer}>
+                <Ionicons name="help-circle" size={20} color="#8B5CF6" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Pet type (e.g., Rabbit, Turtle, Hamster)"
+                  placeholderTextColor="#A0A0A0"
+                  value={customPetType}
+                  onChangeText={setCustomPetType}
+                  autoCapitalize="words"
+                />
+              </View>
+            )}
+
+            {/* Breed field - shown after pet type selected */}
+            <View style={styles.inputContainer}>
+              <Ionicons name="ribbon" size={20} color="#8B5CF6" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Breed (optional)"
+                placeholderTextColor="#A0A0A0"
+                value={breed}
+                onChangeText={setBreed}
+                autoCapitalize="words"
+              />
+            </View>
+
+            {/* Weight field */}
+            <View style={styles.inputContainer}>
+              <Ionicons name="scale" size={20} color="#8B5CF6" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Weight in lb (optional)"
+                placeholderTextColor="#A0A0A0"
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="decimal-pad"
+              />
+              {weight ? <Text style={styles.unitLabel}>lb</Text> : null}
+            </View>
+
             <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.disabledButton]}
+              style={[styles.primaryButton, creating && styles.disabledButton]}
               onPress={handleCreatePet}
-              disabled={loading}
+              disabled={creating}
             >
-              {loading ? (
+              {creating ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
@@ -319,11 +356,7 @@ export default function WelcomeScreen() {
 
             <TouchableOpacity
               style={styles.linkButton}
-              onPress={() => {
-                setMode('welcome');
-                setPetName('');
-                setBirthDate('');
-              }}
+              onPress={() => setMode('list')}
             >
               <Text style={styles.linkText}>Back</Text>
             </TouchableOpacity>
@@ -350,7 +383,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 36,
   },
   logoCircle: {
     width: 100,
@@ -376,8 +409,91 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
-  welcomeContainer: {
-    gap: 16,
+  listContainer: {
+    gap: 12,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  petCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  petCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  petCardImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  petCardImagePlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F3E8FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petCardInfo: {
+    marginLeft: 14,
+    flex: 1,
+  },
+  petCardName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  petCardType: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3E8FF',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 8,
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8B5CF6',
   },
   formContainer: {
     gap: 16,
@@ -393,6 +509,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 4,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -412,11 +534,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
-  petTypeLabel: {
+  unitLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 8,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   petTypeContainer: {
     flexDirection: 'row',
@@ -462,20 +584,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3E8FF',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8B5CF6',
   },
   disabledButton: {
     opacity: 0.7,
