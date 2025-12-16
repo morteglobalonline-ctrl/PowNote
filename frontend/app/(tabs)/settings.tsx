@@ -102,27 +102,22 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleSwitchPet = async () => {
+  const handleSwitchPet = () => {
     Alert.alert('Switch Pet', 'Do you want to switch to a different pet?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Switch',
-        onPress: async () => {
-          try {
-            await AsyncStorage.removeItem('currentPet');
-            await AsyncStorage.removeItem('chatSessionId');
-            // Navigate to the root entry screen
-            router.dismissAll();
-            router.replace('/');
-          } catch (e) {
-            // Fallback navigation
-            await AsyncStorage.removeItem('currentPet');
-            await AsyncStorage.removeItem('chatSessionId');
-            router.replace('/');
-          }
+        onPress: () => {
+          performSwitch();
         },
       },
     ]);
+  };
+
+  const performSwitch = async () => {
+    await AsyncStorage.removeItem('currentPet');
+    await AsyncStorage.removeItem('chatSessionId');
+    router.replace('/');
   };
 
   const getCategoryIcon = (category: string) => {
