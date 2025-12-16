@@ -35,8 +35,10 @@ class Pet(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     birth_date: str  # Format: YYYY-MM-DD
-    pet_type: str = "dog"  # dog, cat, bird, etc.
+    pet_type: str = "dog"  # dog, cat, bird, other
+    custom_pet_type: Optional[str] = None  # For "other" type: Rabbit, Turtle, etc.
     breed: Optional[str] = None
+    weight: Optional[float] = None  # Weight in pounds (lb)
     photo: Optional[str] = None  # Base64 image
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -44,14 +46,18 @@ class PetCreate(BaseModel):
     name: str
     birth_date: str
     pet_type: str = "dog"
+    custom_pet_type: Optional[str] = None
     breed: Optional[str] = None
+    weight: Optional[float] = None
     photo: Optional[str] = None
 
 class PetUpdate(BaseModel):
     name: Optional[str] = None
     birth_date: Optional[str] = None
     pet_type: Optional[str] = None
+    custom_pet_type: Optional[str] = None
     breed: Optional[str] = None
+    weight: Optional[float] = None
     photo: Optional[str] = None
 
 class ChecklistItem(BaseModel):
