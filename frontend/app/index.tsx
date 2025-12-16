@@ -343,6 +343,53 @@ export default function WelcomeScreen() {
               {weight ? <Text style={styles.unitLabel}>lb</Text> : null}
             </View>
 
+            {/* Gender field */}
+            <Text style={styles.fieldLabel}>Gender (optional)</Text>
+            <View style={styles.genderContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.genderButton,
+                  gender === 'male' && styles.genderButtonActive,
+                ]}
+                onPress={() => setGender(gender === 'male' ? null : 'male')}
+              >
+                <Ionicons
+                  name="male"
+                  size={20}
+                  color={gender === 'male' ? '#FFFFFF' : '#8B5CF6'}
+                />
+                <Text
+                  style={[
+                    styles.genderText,
+                    gender === 'male' && styles.genderTextActive,
+                  ]}
+                >
+                  Male
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.genderButton,
+                  gender === 'female' && styles.genderButtonActive,
+                ]}
+                onPress={() => setGender(gender === 'female' ? null : 'female')}
+              >
+                <Ionicons
+                  name="female"
+                  size={20}
+                  color={gender === 'female' ? '#FFFFFF' : '#8B5CF6'}
+                />
+                <Text
+                  style={[
+                    styles.genderText,
+                    gender === 'female' && styles.genderTextActive,
+                  ]}
+                >
+                  Female
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
               style={[styles.primaryButton, creating && styles.disabledButton]}
               onPress={handleCreatePet}
