@@ -128,9 +128,8 @@ export default function SettingsScreen() {
     // Clear stored pet data first
     await AsyncStorage.removeItem('currentPet');
     await AsyncStorage.removeItem('chatSessionId');
-    // Navigate to root pet selection screen
-    // Use navigate with reset to ensure clean navigation
-    router.dismissAll();
+    // Navigate to root pet selection screen using replace to clear stack
+    router.replace('/');
   };
 
   const getCategoryIcon = (category: string) => {
