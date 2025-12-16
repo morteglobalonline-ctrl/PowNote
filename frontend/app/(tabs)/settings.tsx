@@ -104,15 +104,24 @@ export default function SettingsScreen() {
   };
 
   const handleSwitchPet = () => {
-    Alert.alert('Switch Pet', 'Do you want to switch to a different pet?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Switch',
-        onPress: () => {
-          performSwitch();
+    if (Platform.OS === 'web') {
+      // Use window.confirm for web
+      const confirmed = window.confirm('Do you want to switch to a different pet?');
+      if (confirmed) {
+        performSwitch();
+      }
+    } else {
+      // Use Alert for native platforms
+      Alert.alert('Switch Pet', 'Do you want to switch to a different pet?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Switch',
+          onPress: () => {
+            performSwitch();
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const performSwitch = async () => {
