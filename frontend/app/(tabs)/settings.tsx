@@ -125,9 +125,12 @@ export default function SettingsScreen() {
   };
 
   const performSwitch = async () => {
+    // Clear stored pet data first
     await AsyncStorage.removeItem('currentPet');
     await AsyncStorage.removeItem('chatSessionId');
-    router.replace('/');
+    // Navigate to root pet selection screen
+    // Use navigate with reset to ensure clean navigation
+    router.dismissAll();
   };
 
   const getCategoryIcon = (category: string) => {
