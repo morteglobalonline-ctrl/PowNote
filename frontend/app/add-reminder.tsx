@@ -52,6 +52,7 @@ export default function AddReminderScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [petId, setPetId] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [petName, setPetName] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
