@@ -470,11 +470,12 @@ Important guidelines:
             if ',' in image_data:
                 image_data = image_data.split(',')[1]
             
+            # Create FileContent for the image
+            image_file = FileContent(content_type="image/jpeg", file_content_base64=image_data)
+            
             # Send image with optional text
-            if request.message.strip():
-                user_message = ImageMessage(image=image_data, text=request.message)
-            else:
-                user_message = ImageMessage(image=image_data, text="What do you see in this image? Please provide any relevant pet care advice based on what you observe.")
+            message_text = request.message.strip() if request.message else "What do you see in this image? Please provide any relevant pet care advice based on what you observe."
+            user_message = UserMessage(text=message_text, file_contents=[image_file])
             response = await chat.send_message(user_message)
         else:
             user_message = UserMessage(text=request.message)
