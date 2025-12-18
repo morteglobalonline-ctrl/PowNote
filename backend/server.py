@@ -463,15 +463,29 @@ Important guidelines:
             if msg.get("role") == "user":
                 await chat.send_message(UserMessage(text=msg.get("content", "")))
         
-        # Send current message
-        user_message = UserMessage(text=request.message)
-        response = await chat.send_message(user_message)
+        # Send current message (with or without image)
+        if request.image:
+            # Extract base64 data if it includes data URI prefix
+            image_data = request.image
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
+            
+            # Send image with optional text
+            if request.message.strip():
+                user_message = ImageMessage(image=image_data, text=request.message)
+            else:
+                user_message = ImageMessage(image=image_data, text="What do you see in this image? Please provide any relevant pet care advice based on what you observe.")
+            response = await chat.send_message(user_message)
+        else:
+            user_message = UserMessage(text=request.message)
+            response = await chat.send_message(user_message)
         
         # Save messages to database
         user_msg = ChatMessage(
             session_id=request.session_id,
             role="user",
-            content=request.message,
+            content=request.message or "[Image]",
+            image=request.image,
             pet_id=request.pet_id
         )
         await db.chat_messages.insert_one(user_msg.dict())
