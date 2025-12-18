@@ -41,6 +41,7 @@ export default function AIScreen() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [pet, setPet] = useState<Pet | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     initSession();
