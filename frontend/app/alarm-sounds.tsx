@@ -11,85 +11,56 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
-
-// Alarm sounds data - scalable for 100+ sounds
-const ALARM_SOUNDS = [
-  { id: 'dog', name: 'Dog', icon: 'paw', category: 'pets' },
-  { id: 'cat', name: 'Cat', icon: 'paw', category: 'pets' },
-  { id: 'wolf', name: 'Wolf', icon: 'moon', category: 'wild' },
-  { id: 'bird', name: 'Bird', icon: 'leaf', category: 'nature' },
-  { id: 'lion', name: 'Lion', icon: 'shield', category: 'wild' },
-  { id: 'rooster', name: 'Rooster', icon: 'sunny', category: 'farm' },
-  { id: 'owl', name: 'Owl', icon: 'moon', category: 'nature' },
-  { id: 'dolphin', name: 'Dolphin', icon: 'water', category: 'ocean' },
-  { id: 'frog', name: 'Frog', icon: 'leaf', category: 'nature' },
-  { id: 'cricket', name: 'Cricket', icon: 'musical-notes', category: 'nature' },
-  { id: 'whale', name: 'Whale', icon: 'water', category: 'ocean' },
-  { id: 'elephant', name: 'Elephant', icon: 'footsteps', category: 'wild' },
-];
-
-interface AlarmSound {
-  id: string;
-  name: string;
-  icon: string;
-  category: string;
-}
+import { alarmSoundService, ALARM_SOUNDS, AlarmSound } from '../services/alarmSoundService';
 
 export default function AlarmSoundsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedSound, setSelectedSound] = useState<string>('dog');
   const [playingSound, setPlayingSound] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Load previously selected sound
-    const loadSelected = async () => {
-      const saved = await AsyncStorage.getItem('tempSelectedSound');
+    // Initialize audio and load previously selected sound
+    const initialize = async () => {
+      await alarmSoundService.initializeAudio();
+      const saved = await AsyncStorage.getItem('selectedAlarmSound');
       if (saved) {
         setSelectedSound(saved);
       }
+      setIsInitialized(true);
     };
-    loadSelected();
+    initialize();
 
     return () => {
       // Cleanup sound on unmount
-      if (sound) {
-        sound.unloadAsync();
-      }
+      alarmSoundService.cleanup();
     };
   }, []);
 
   const playPreview = async (soundId: string) => {
     try {
-      // Stop any currently playing sound
-      if (sound) {
-        await sound.stopAsync();
-        await sound.unloadAsync();
-      }
-
+      // If same sound is playing, stop it
       if (playingSound === soundId) {
+        await alarmSoundService.stopCurrentSound();
         setPlayingSound(null);
         return;
       }
 
-      // For now, we'll simulate sound preview with a short delay
-      // In production, you would load actual sound files here
+      // Stop any currently playing sound
+      await alarmSoundService.stopCurrentSound();
       setPlayingSound(soundId);
-      
-      // Simulate sound playing for 2 seconds
-      setTimeout(() => {
+
+      // Play the sound preview
+      const success = await alarmSoundService.playPreview(soundId, (status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlayingSound(null);
+        }
+      });
+
+      if (!success) {
         setPlayingSound(null);
-      }, 2000);
-
-      // Example of how to load actual sounds:
-      // const { sound: newSound } = await Audio.Sound.createAsync(
-      //   require(`../assets/sounds/${soundId}.mp3`)
-      // );
-      // setSound(newSound);
-      // await newSound.playAsync();
-
+      }
     } catch (error) {
       console.error('Error playing sound:', error);
       setPlayingSound(null);
@@ -101,7 +72,11 @@ export default function AlarmSoundsScreen() {
   };
 
   const handleConfirm = async () => {
-    // Save selected sound to AsyncStorage so add-reminder can read it
+    // Stop any playing sound
+    await alarmSoundService.stopCurrentSound();
+    setPlayingSound(null);
+    
+    // Save selected sound to AsyncStorage
     await AsyncStorage.setItem('selectedAlarmSound', selectedSound);
     router.back();
   };
@@ -120,7 +95,10 @@ export default function AlarmSoundsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => {
+          alarmSoundService.stopCurrentSound();
+          router.back();
+        }}>
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Alarm Sounds</Text>
@@ -137,10 +115,10 @@ export default function AlarmSoundsScreen() {
       >
         <Text style={styles.sectionTitle}>Animal Sounds</Text>
         <Text style={styles.sectionSubtitle}>
-          Select a sound for your reminder alarm
+          AI-generated sounds for your pet reminders
         </Text>
 
-        {ALARM_SOUNDS.map((alarmSound) => (
+        {ALARM_SOUNDS.map((alarmSound: AlarmSound) => (
           <TouchableOpacity
             key={alarmSound.id}
             style={[
@@ -163,14 +141,21 @@ export default function AlarmSoundsScreen() {
                   color={getIconColor(alarmSound.id)}
                 />
               </View>
-              <Text
-                style={[
-                  styles.soundName,
-                  selectedSound === alarmSound.id && styles.soundNameSelected,
-                ]}
-              >
-                {alarmSound.name}
-              </Text>
+              <View style={styles.soundInfo}>
+                <Text
+                  style={[
+                    styles.soundName,
+                    selectedSound === alarmSound.id && styles.soundNameSelected,
+                  ]}
+                >
+                  {alarmSound.name}
+                </Text>
+                {alarmSound.description && (
+                  <Text style={styles.soundDescription}>
+                    {alarmSound.description}
+                  </Text>
+                )}
+              </View>
             </View>
 
             <View style={styles.soundItemRight}>
@@ -179,13 +164,16 @@ export default function AlarmSoundsScreen() {
                 style={styles.playButton}
                 onPress={() => playPreview(alarmSound.id)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                disabled={!isInitialized}
               >
                 {playingSound === alarmSound.id ? (
-                  <ActivityIndicator size="small" color="#8B5CF6" />
+                  <View style={styles.stopButton}>
+                    <Ionicons name="stop" size={16} color="#FFFFFF" />
+                  </View>
                 ) : (
                   <Ionicons
                     name="play-circle"
-                    size={32}
+                    size={36}
                     color={selectedSound === alarmSound.id ? '#8B5CF6' : '#9CA3AF'}
                   />
                 )}
@@ -202,9 +190,10 @@ export default function AlarmSoundsScreen() {
         ))}
 
         <View style={styles.infoBox}>
-          <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
+          <Ionicons name="sparkles" size={20} color="#8B5CF6" />
           <Text style={styles.infoText}>
-            Sound previews are simulated. Actual alarm sounds will play when the reminder triggers.
+            All sounds are originally created for Pawnote using AI sound generation. 
+            Soft, natural tones perfect for gentle reminders.
           </Text>
         </View>
 
@@ -276,12 +265,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   soundIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
+  },
+  soundInfo: {
+    flex: 1,
   },
   soundName: {
     fontSize: 16,
@@ -292,21 +284,34 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontWeight: '600',
   },
+  soundDescription: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
   soundItemRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   playButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkmark: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#8B5CF6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -314,7 +319,7 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F5F3FF',
     borderRadius: 12,
     padding: 14,
     marginTop: 16,
