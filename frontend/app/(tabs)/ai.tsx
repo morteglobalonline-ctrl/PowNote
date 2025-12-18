@@ -78,6 +78,83 @@ export default function AIScreen() {
     }
   };
 
+  const requestPermissions = async () => {
+    const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+    const libraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    return cameraStatus.status === 'granted' && libraryStatus.status === 'granted';
+  };
+
+  const pickImageFromGallery = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) {
+      Alert.alert('Permission Required', 'Please allow access to your photos to attach images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
+
+  const takePhoto = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) {
+      Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
+
+  const showImageOptions = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Take Photo', 'Choose from Gallery'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            takePhoto();
+          } else if (buttonIndex === 2) {
+            pickImageFromGallery();
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Attach Image',
+        'Choose how you want to add an image',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Take Photo', onPress: takePhoto },
+          { text: 'Choose from Gallery', onPress: pickImageFromGallery },
+        ]
+      );
+    }
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+  };
+
   const loadChatHistory = async (session: string) => {
     try {
       const response = await fetch(`${API_URL}/api/chat/history/${session}`);
