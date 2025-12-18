@@ -306,14 +306,33 @@ export default function AIScreen() {
                   <Ionicons name="sparkles" size={14} color="#8B5CF6" />
                 </View>
               )}
-              <Text
-                style={[
-                  styles.messageText,
-                  msg.role === 'user' ? styles.userText : styles.aiText,
-                ]}
-              >
-                {msg.content}
-              </Text>
+              {msg.image && (
+                <Image 
+                  source={{ uri: msg.image }} 
+                  style={styles.messageImage}
+                  resizeMode="cover"
+                />
+              )}
+              {msg.content && msg.content !== '[Sent an image]' && (
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.role === 'user' ? styles.userText : styles.aiText,
+                  ]}
+                >
+                  {msg.content}
+                </Text>
+              )}
+              {msg.content === '[Sent an image]' && !msg.image && (
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.role === 'user' ? styles.userText : styles.aiText,
+                  ]}
+                >
+                  {msg.content}
+                </Text>
+              )}
             </View>
           ))
         )}
