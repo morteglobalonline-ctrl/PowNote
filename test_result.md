@@ -198,7 +198,7 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
@@ -206,6 +206,21 @@ backend:
       - working: true
         agent: "testing"
         comment: "Comprehensive testing completed - AI Chat working perfectly. Successfully sent message about Golden Retriever puppy walking, received detailed AI response, chat history saved and retrieved correctly. Clear chat history also working."
+      - working: "NA"
+        agent: "main"
+        comment: "Added image upload support to AI chat endpoint. Now accepts optional 'image' field (base64) in ChatRequest. Uses FileContent for vision API calls. Needs retesting."
+
+  - task: "AI Chat Image Upload"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented vision-based AI chat. Backend accepts optional base64 image in /api/chat endpoint. Frontend has camera button to take photo or pick from gallery. Image preview before sending. Needs testing."
 
   - task: "Convert Vet Instructions to Checklist"
     implemented: true
