@@ -377,7 +377,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "AI Chat Image Upload"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -387,3 +388,5 @@ agent_communication:
     message: "Implemented complete Pawnote MVP with all features. Backend APIs all working - tested root, pets, access, checklists, and AI chat manually with curl. Frontend welcome screen and dashboard verified with screenshots. Need comprehensive backend API testing for all endpoints including vet visits, reminders, and edge cases."
   - agent: "testing"
     message: "Comprehensive backend API testing completed successfully! All 22 API endpoints tested and working perfectly. Created comprehensive test suite (backend_test.py) that covers: Pet CRUD operations, Simple access authentication, Checklists CRUD with item toggling, Vet visits CRUD with instruction conversion, Reminders CRUD with toggle functionality, AI chat with history management, and all delete operations. 100% success rate on all tests. Backend is fully functional and ready for production use."
+  - agent: "main"
+    message: "Added AI Chat Image Upload feature. Backend /api/chat endpoint now accepts optional 'image' field (base64 string) and uses vision API to analyze images. Frontend AI screen now has camera button to take photo or select from gallery, shows image preview before sending, and displays images in chat messages. Please test the image upload feature by sending a text message with an image to verify vision API integration works correctly."
