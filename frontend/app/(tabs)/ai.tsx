@@ -168,11 +168,20 @@ export default function AIScreen() {
   };
 
   const sendMessage = async () => {
-    if (!inputText.trim() || loading) return;
+    if ((!inputText.trim() && !selectedImage) || loading) return;
 
     const userMessage = inputText.trim();
+    const imageToSend = selectedImage;
+    
     setInputText('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setSelectedImage(null);
+    
+    // Add user message to chat (include image if present)
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage || (imageToSend ? '[Sent an image]' : ''),
+      image: imageToSend || undefined
+    }]);
     setLoading(true);
 
     try {
@@ -182,6 +191,7 @@ export default function AIScreen() {
         body: JSON.stringify({
           session_id: sessionId,
           message: userMessage,
+          image: imageToSend,
           pet_id: pet?.id,
         }),
       });
