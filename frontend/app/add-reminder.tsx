@@ -19,7 +19,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+// Get API URL from environment - fallback for mobile compatibility
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+// Log API URL for debugging (remove in production)
+console.log('[AddReminder] API_URL:', API_URL);
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
