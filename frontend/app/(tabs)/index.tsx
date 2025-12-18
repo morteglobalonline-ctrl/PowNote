@@ -312,7 +312,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.reminderInfo}>
                 <Text style={styles.reminderTitle}>{rem.title}</Text>
-                <Text style={styles.reminderTime}>{rem.reminder_time}</Text>
+                <Text style={styles.reminderTime}>{formatTimeToAmPm(rem.reminder_time)}</Text>
               </View>
             </View>
           ))
