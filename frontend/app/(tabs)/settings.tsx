@@ -18,6 +18,16 @@ import * as Linking from 'expo-linking';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
+// Format time from 24-hour (HH:MM) to 12-hour format (h:mm AM/PM)
+const formatTimeToAmPm = (time24: string): string => {
+  const [hoursStr, minutesStr] = time24.split(':');
+  const hours = parseInt(hoursStr, 10);
+  const minutes = minutesStr || '00';
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${minutes} ${ampm}`;
+};
+
 interface Pet {
   id: string;
   name: string;
