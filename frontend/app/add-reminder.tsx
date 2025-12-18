@@ -213,8 +213,11 @@ export default function AddReminderScreen() {
     
     // Build the full API URL
     const apiEndpoint = `${API_URL}/api/reminders`;
-    console.log('[AddReminder] Creating reminder at:', apiEndpoint);
-    console.log('[AddReminder] Pet ID:', petId);
+    
+    if (__DEV__) {
+      console.log('[AddReminder] Creating reminder at:', apiEndpoint);
+      console.log('[AddReminder] Pet ID:', petId);
+    }
     
     try {
       const reminderTime = getTimeString(selectedTime);
@@ -228,7 +231,9 @@ export default function AddReminderScreen() {
         recurrence_days: selectedDays,
       };
       
-      console.log('[AddReminder] Payload:', JSON.stringify(payload));
+      if (__DEV__) {
+        console.log('[AddReminder] Payload:', JSON.stringify(payload));
+      }
       
       const response = await fetch(apiEndpoint, {
         method: 'POST',
@@ -236,22 +241,44 @@ export default function AddReminderScreen() {
         body: JSON.stringify(payload),
       });
 
-      console.log('[AddReminder] Response status:', response.status);
+      if (__DEV__) {
+        console.log('[AddReminder] Response status:', response.status);
+      }
 
       if (response.ok) {
         const reminder = await response.json();
-        console.log('[AddReminder] Reminder created:', reminder.id);
-        await scheduleNotification(reminder);
+        if (__DEV__) {
+          console.log('[AddReminder] Reminder created successfully:', reminder.id);
+        }
+        
+        // Schedule notification separately - don't let notification errors affect the flow
+        try {
+          await scheduleNotification(reminder);
+          if (__DEV__) {
+            console.log('[AddReminder] Notification scheduled');
+          }
+        } catch (notifError: any) {
+          // Notification scheduling failed, but reminder was created successfully
+          if (__DEV__) {
+            console.log('[AddReminder] Notification scheduling failed (non-critical):', notifError.message);
+          }
+        }
+        
+        // Reminder was created successfully - navigate back
         router.back();
       } else {
         const errorText = await response.text();
-        console.log('[AddReminder] Error response:', errorText);
+        if (__DEV__) {
+          console.log('[AddReminder] Server error:', errorText);
+        }
         setErrorMessage('Could not create reminder. Please try again.');
       }
     } catch (e: any) {
-      console.log('[AddReminder] Network error:', e.message);
-      console.log('[AddReminder] API URL was:', apiEndpoint);
-      setErrorMessage(`Connection failed. Please check your internet connection.`);
+      if (__DEV__) {
+        console.log('[AddReminder] Network error:', e.message);
+        console.log('[AddReminder] API URL was:', apiEndpoint);
+      }
+      setErrorMessage('Connection failed. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
