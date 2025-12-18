@@ -223,7 +223,7 @@ export default function SettingsScreen() {
                   <Text style={styles.reminderTitle}>{reminder.title}</Text>
                   <View style={styles.reminderMeta}>
                     <Ionicons name="time-outline" size={12} color="#6B7280" />
-                    <Text style={styles.reminderTime}>{reminder.reminder_time}</Text>
+                    <Text style={styles.reminderTime}>{formatTimeToAmPm(reminder.reminder_time)}</Text>
                     {reminder.is_recurring && (
                       <>
                         <Ionicons name="repeat" size={12} color="#8B5CF6" />
