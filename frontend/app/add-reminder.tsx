@@ -22,8 +22,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 // Get API URL from environment - fallback for mobile compatibility
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
-// Log API URL for debugging (remove in production)
-console.log('[AddReminder] API_URL:', API_URL);
+// Log API URL on mount for debugging
+if (__DEV__) {
+  console.log('[AddReminder] Using API_URL:', API_URL);
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
