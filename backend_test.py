@@ -11,7 +11,7 @@ from datetime import datetime, date
 import sys
 
 # Backend URL from environment
-BACKEND_URL = "https://pet-tracker-ui.preview.emergentagent.com/api"
+BACKEND_URL = "https://pet-pal-2.preview.emergentagent.com/api"
 
 class PawnoteAPITester:
     def __init__(self):
