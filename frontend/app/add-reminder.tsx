@@ -201,37 +201,55 @@ export default function AddReminderScreen() {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert('Missing Info', 'Please enter a title');
+      setErrorMessage('Please enter a title');
       return;
     }
 
+    // Clear any previous error
+    setErrorMessage(null);
     setLoading(true);
+    
+    // Build the full API URL
+    const apiEndpoint = `${API_URL}/api/reminders`;
+    console.log('[AddReminder] Creating reminder at:', apiEndpoint);
+    console.log('[AddReminder] Pet ID:', petId);
+    
     try {
       const reminderTime = getTimeString(selectedTime);
-      const response = await fetch(`${API_URL}/api/reminders`, {
+      const payload = {
+        pet_id: petId,
+        title: title.trim(),
+        description: description.trim() || null,
+        reminder_time: reminderTime,
+        category,
+        is_recurring: isRecurring,
+        recurrence_days: selectedDays,
+      };
+      
+      console.log('[AddReminder] Payload:', JSON.stringify(payload));
+      
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pet_id: petId,
-          title: title.trim(),
-          description: description.trim() || null,
-          reminder_time: reminderTime,
-          category,
-          is_recurring: isRecurring,
-          recurrence_days: selectedDays,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.log('[AddReminder] Response status:', response.status);
 
       if (response.ok) {
         const reminder = await response.json();
+        console.log('[AddReminder] Reminder created:', reminder.id);
         await scheduleNotification(reminder);
-        Alert.alert('Success', 'Reminder created!');
         router.back();
       } else {
-        Alert.alert('Error', 'Could not create reminder');
+        const errorText = await response.text();
+        console.log('[AddReminder] Error response:', errorText);
+        setErrorMessage('Could not create reminder. Please try again.');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Could not connect to server');
+    } catch (e: any) {
+      console.log('[AddReminder] Network error:', e.message);
+      console.log('[AddReminder] API URL was:', apiEndpoint);
+      setErrorMessage(`Connection failed. Please check your internet connection.`);
     } finally {
       setLoading(false);
     }
