@@ -198,7 +198,7 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
@@ -209,6 +209,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "Added image upload support to AI chat endpoint. Now accepts optional 'image' field (base64) in ChatRequest. Uses FileContent for vision API calls. Needs retesting."
+      - working: true
+        agent: "testing"
+        comment: "Updated AI Chat with image support now working perfectly. Fixed implementation to use ImageContent instead of FileContent for proper image handling. Both text-only and image+text chat functionality confirmed working with emergentintegrations library and GPT-4o vision model."
 
   - task: "AI Chat Image Upload"
     implemented: true
