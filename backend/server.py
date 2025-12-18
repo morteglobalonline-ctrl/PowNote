@@ -143,12 +143,14 @@ class ChatMessage(BaseModel):
     session_id: str
     role: str  # user or assistant
     content: str
+    image: Optional[str] = None  # Base64 image data
     pet_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    image: Optional[str] = None  # Base64 image data for vision
     pet_id: Optional[str] = None
 
 class AccessRequest(BaseModel):
