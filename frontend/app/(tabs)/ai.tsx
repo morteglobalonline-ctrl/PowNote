@@ -347,10 +347,27 @@ export default function AIScreen() {
 
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
+        {/* Image Preview */}
+        {selectedImage && (
+          <View style={styles.imagePreviewContainer}>
+            <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+            <TouchableOpacity style={styles.removeImageButton} onPress={removeSelectedImage}>
+              <Ionicons name="close-circle" size={24} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        )}
+        
         <View style={styles.inputWrapper}>
+          <TouchableOpacity 
+            style={styles.attachButton} 
+            onPress={showImageOptions}
+            disabled={loading}
+          >
+            <Ionicons name="camera" size={24} color={loading ? "#D1D5DB" : "#8B5CF6"} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Ask about your pet..."
+            placeholder={selectedImage ? "Add a message (optional)..." : "Ask about your pet..."}
             placeholderTextColor="#9CA3AF"
             value={inputText}
             onChangeText={setInputText}
@@ -358,9 +375,12 @@ export default function AIScreen() {
             maxLength={500}
           />
           <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            style={[
+              styles.sendButton, 
+              (!inputText.trim() && !selectedImage) && styles.sendButtonDisabled
+            ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || loading}
+            disabled={(!inputText.trim() && !selectedImage) || loading}
           >
             <Ionicons name="send" size={20} color="#FFFFFF" />
           </TouchableOpacity>
