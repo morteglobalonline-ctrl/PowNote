@@ -465,13 +465,19 @@ Important guidelines:
         
         # Send current message (with or without image)
         if request.image:
-            # Extract base64 data if it includes data URI prefix
+            # Extract base64 data and content type from data URI
             image_data = request.image
+            content_type = "image/jpeg"  # default
+            
             if ',' in image_data:
-                image_data = image_data.split(',')[1]
+                # Parse data URI: data:image/png;base64,<data>
+                header, image_data = image_data.split(',', 1)
+                if 'image/' in header:
+                    # Extract content type from header
+                    content_type = header.split(':')[1].split(';')[0]
             
             # Create FileContent for the image
-            image_file = FileContent(content_type="image/jpeg", file_content_base64=image_data)
+            image_file = FileContent(content_type=content_type, file_content_base64=image_data)
             
             # Send image with optional text
             message_text = request.message.strip() if request.message else "What do you see in this image? Please provide any relevant pet care advice based on what you observe."
