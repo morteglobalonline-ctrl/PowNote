@@ -37,3 +37,11 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Expo/Metro cache
+.metro-cache/
+
+# Local / temp files
+pawslife-production.aab
+eas.json.save
+app/*.code-search

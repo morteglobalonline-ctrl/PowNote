@@ -5,5 +5,15 @@
         "buildType": "app-bundle"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6757072027"
+      }
+    }
+  },
+  "cli": {
+    "promptToConfigurePushNotifications": false
   }
 }
