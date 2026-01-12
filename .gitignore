@@ -38,6 +38,7 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+<<<<<<< HEAD
 # build outputs
 /build
 /.next/
@@ -55,3 +56,14 @@ yarn-error.*
 
 # vercel
 .vercel
+=======
+app-example
+
+# Expo/Metro cache
+.metro-cache/
+
+# Local / temp files
+pawslife-production.aab
+eas.json.save
+app/*.code-search
+>>>>>>> a22151d (Fix iOS permissions, clean metro cache, and bump build to 13)
