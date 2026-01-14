@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Paw's Life",
+    "slug": "pawslife",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "pawslife",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thendop.pawslife"
+    },
+    "android": {
+      "package": "com.thendop.pawslife"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "974d7356-566a-4a25-9353-aa6714785f69"
+      }
+    },
+    "owner": "thendop"
+  }
+}
