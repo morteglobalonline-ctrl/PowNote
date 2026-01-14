@@ -66,4 +66,10 @@ app-example
 pawslife-production.aab
 eas.json.save
 app/*.code-search
+<<<<<<< HEAD
 >>>>>>> a22151d (Fix iOS permissions, clean metro cache, and bump build to 13)
+=======
+
+# Metro cache
+.metro-cache/
+>>>>>>> 383d496 (Fix local-only pet storage and stabilize reminder notifications)

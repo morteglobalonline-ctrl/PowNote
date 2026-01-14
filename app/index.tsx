@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,22 +14,9 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-interface Pet {
-  id: string;
-  name: string;
-  birth_date: string;
-  pet_type: string;
-  custom_pet_type?: string;
-  breed?: string;
-  weight?: number;
-  gender?: string;
-  photo?: string;
-}
+import { getPets, addPet, setCurrentPetId, Pet } from '../services/localDb';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -38,7 +25,7 @@ export default function WelcomeScreen() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  
+
   // New pet form
   const [petName, setPetName] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -48,29 +35,26 @@ export default function WelcomeScreen() {
   const [weight, setWeight] = useState('');
   const [gender, setGender] = useState<string | null>(null);
 
+  const loadPets = async () => {
+    setLoading(true);
+    try {
+      const list = await getPets();
+      setPets(list);
+    } catch (e) {
+      console.error('Error loading pets (local):', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadPets();
     }, [])
   );
 
-  const loadPets = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/pets`);
-      if (response.ok) {
-        const data = await response.json();
-        setPets(data);
-      }
-    } catch (e) {
-      console.error('Error loading pets:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const selectPet = async (pet: Pet) => {
-    await AsyncStorage.setItem('currentPet', JSON.stringify(pet));
+    await setCurrentPetId(pet.id);
     router.replace('/(tabs)');
   };
 
@@ -89,29 +73,26 @@ export default function WelcomeScreen() {
 
     setCreating(true);
     try {
-      const response = await fetch(`${API_URL}/api/pets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: petName.trim(),
-          birth_date: birthDate,
-          pet_type: petType,
-          custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
-          breed: breed.trim() || null,
-          weight: weight ? parseFloat(weight) : null,
-          gender: gender,
-        }),
+      const pet = await addPet({
+        name: petName.trim(),
+        birth_date: birthDate,
+        pet_type: petType,
+        custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
+        breed: breed.trim() || null,
+        weight: weight ? parseFloat(weight) : null,
+        gender: gender,
+        photo: null,
       });
 
-      if (response.ok) {
-        const pet = await response.json();
-        await AsyncStorage.setItem('currentPet', JSON.stringify(pet));
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Error', 'Could not create pet profile');
-      }
+      // Update UI immediately (no reload required)
+      setPets((prev) => [pet, ...prev]);
+
+      // Navigate
+      await setCurrentPetId(pet.id);
+      router.replace('/(tabs)');
     } catch (e) {
-      Alert.alert('Error', 'Could not connect to server');
+      console.error('Error creating pet (local):', e);
+      Alert.alert('Error', 'Could not create pet profile');
     } finally {
       setCreating(false);
     }
@@ -135,10 +116,14 @@ export default function WelcomeScreen() {
 
   const getPetIcon = (type: string) => {
     switch (type) {
-      case 'cat': return 'paw';
-      case 'bird': return 'leaf';
-      case 'other': return 'heart';
-      default: return 'paw';
+      case 'cat':
+        return 'paw';
+      case 'bird':
+        return 'leaf';
+      case 'other':
+        return 'heart';
+      default:
+        return 'paw';
     }
   };
 
@@ -244,9 +229,7 @@ export default function WelcomeScreen() {
         {mode === 'new' && (
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>Add Your Pet</Text>
-            <Text style={styles.formSubtitle}>
-              Create a profile for your furry friend
-            </Text>
+            <Text style={styles.formSubtitle}>Create a profile for your furry friend</Text>
 
             <View style={styles.inputContainer}>
               <Ionicons name="paw" size={20} color="#8B5CF6" style={styles.inputIcon} />
@@ -347,31 +330,17 @@ export default function WelcomeScreen() {
             <Text style={styles.fieldLabel}>Gender (optional)</Text>
             <View style={styles.genderContainer}>
               <TouchableOpacity
-                style={[
-                  styles.genderButton,
-                  gender === 'male' && styles.genderButtonActive,
-                ]}
+                style={[styles.genderButton, gender === 'male' && styles.genderButtonActive]}
                 onPress={() => setGender(gender === 'male' ? null : 'male')}
               >
-                <Ionicons
-                  name="male"
-                  size={20}
-                  color={gender === 'male' ? '#FFFFFF' : '#8B5CF6'}
-                />
-                <Text
-                  style={[
-                    styles.genderText,
-                    gender === 'male' && styles.genderTextActive,
-                  ]}
-                >
+                <Ionicons name="male" size={20} color={gender === 'male' ? '#FFFFFF' : '#8B5CF6'} />
+                <Text style={[styles.genderText, gender === 'male' && styles.genderTextActive]}>
                   Male
                 </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
-                style={[
-                  styles.genderButton,
-                  gender === 'female' && styles.genderButtonActive,
-                ]}
+                style={[styles.genderButton, gender === 'female' && styles.genderButtonActive]}
                 onPress={() => setGender(gender === 'female' ? null : 'female')}
               >
                 <Ionicons
@@ -379,12 +348,7 @@ export default function WelcomeScreen() {
                   size={20}
                   color={gender === 'female' ? '#FFFFFF' : '#8B5CF6'}
                 />
-                <Text
-                  style={[
-                    styles.genderText,
-                    gender === 'female' && styles.genderTextActive,
-                  ]}
-                >
+                <Text style={[styles.genderText, gender === 'female' && styles.genderTextActive]}>
                   Female
                 </Text>
               </TouchableOpacity>
@@ -405,10 +369,7 @@ export default function WelcomeScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkButton}
-              onPress={() => setMode('list')}
-            >
+            <TouchableOpacity style={styles.linkButton} onPress={() => setMode('list')}>
               <Text style={styles.linkText}>Back</Text>
             </TouchableOpacity>
           </View>

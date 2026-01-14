@@ -18,19 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-interface Pet {
-  id: string;
-  name: string;
-  birth_date: string;
-  pet_type: string;
-  custom_pet_type?: string;
-  breed?: string;
-  weight?: number;
-  gender?: string;
-  photo?: string;
-}
+import { getCurrentPet, updatePet, deletePet, Pet } from '../services/localDb';
 
 export default function EditPetScreen() {
   const router = useRouter();
@@ -58,18 +46,21 @@ export default function EditPetScreen() {
   }, []);
 
   const loadPet = async () => {
-    const savedPet = await AsyncStorage.getItem('currentPet');
-    if (savedPet) {
-      const petData = JSON.parse(savedPet);
-      setPet(petData);
-      setName(petData.name);
-      setBirthDate(petData.birth_date);
-      setPetType(petData.pet_type);
-      setCustomPetType(petData.custom_pet_type || '');
-      setBreed(petData.breed || '');
-      setWeight(petData.weight ? String(petData.weight) : '');
-      setGender(petData.gender || null);
-      setPhoto(petData.photo || null);
+    try {
+      const current = await getCurrentPet();
+      if (!current) return;
+
+      setPet(current);
+      setName(current.name);
+      setBirthDate(current.birth_date);
+      setPetType(current.pet_type);
+      setCustomPetType(current.custom_pet_type || '');
+      setBreed(current.breed || '');
+      setWeight(current.weight != null ? String(current.weight) : '');
+      setGender((current.gender as any) || null);
+      setPhoto(current.photo || null);
+    } catch (e) {
+      console.error('Error loading pet (local):', e);
     }
   };
 
@@ -104,37 +95,38 @@ export default function EditPetScreen() {
 
   const handleSave = async () => {
     if (!pet) return;
+
     if (!name.trim() || !birthDate.trim()) {
       Alert.alert('Missing Info', 'Please enter name and birth date');
       return;
     }
 
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(birthDate)) {
+      Alert.alert('Invalid Date', 'Please enter date in YYYY-MM-DD format');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/pets/${pet.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          birth_date: birthDate,
-          pet_type: petType,
-          custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
-          breed: breed.trim() || null,
-          weight: weight ? parseFloat(weight) : null,
-          gender: gender,
-          photo: photo,
-        }),
+      const updatedPet = await updatePet(pet.id, {
+        name: name.trim(),
+        birth_date: birthDate,
+        pet_type: petType,
+        custom_pet_type: petType === 'other' ? customPetType.trim() || null : null,
+        breed: breed.trim() || null,
+        weight: weight ? parseFloat(weight) : null,
+        gender: gender,
+        photo: photo,
       });
 
-      if (response.ok) {
-        const updatedPet = await response.json();
-        await AsyncStorage.setItem('currentPet', JSON.stringify(updatedPet));
-        router.back();
-      } else {
-        Alert.alert('Error', 'Could not update pet profile');
-      }
+      // Keep screen state in sync
+      setPet(updatedPet);
+      router.back();
     } catch (e) {
-      Alert.alert('Error', 'Could not connect to server');
+      console.error('Error updating pet (local):', e);
+      Alert.alert('Error', 'Could not update pet profile');
     } finally {
       setLoading(false);
     }
@@ -153,11 +145,14 @@ export default function EditPetScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${API_URL}/api/pets/${pet.id}`, { method: 'DELETE' });
-              await AsyncStorage.removeItem('currentPet');
+              await deletePet(pet.id);
+
+              // Optional cleanup for privacy (AI legacy)
               await AsyncStorage.removeItem('chatSessionId');
+
               router.replace('/');
             } catch (e) {
+              console.error('Error deleting pet (local):', e);
               Alert.alert('Error', 'Could not delete pet');
             }
           },
@@ -189,10 +184,7 @@ export default function EditPetScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Photo */}
         <TouchableOpacity style={styles.photoContainer} onPress={pickImage}>
           {photo ? (
@@ -310,31 +302,17 @@ export default function EditPetScreen() {
           <Text style={styles.label}>Gender (Optional)</Text>
           <View style={styles.genderContainer}>
             <TouchableOpacity
-              style={[
-                styles.genderButton,
-                gender === 'male' && styles.genderButtonActive,
-              ]}
+              style={[styles.genderButton, gender === 'male' && styles.genderButtonActive]}
               onPress={() => setGender(gender === 'male' ? null : 'male')}
             >
-              <Ionicons
-                name="male"
-                size={20}
-                color={gender === 'male' ? '#FFFFFF' : '#8B5CF6'}
-              />
-              <Text
-                style={[
-                  styles.genderText,
-                  gender === 'male' && styles.genderTextActive,
-                ]}
-              >
+              <Ionicons name="male" size={20} color={gender === 'male' ? '#FFFFFF' : '#8B5CF6'} />
+              <Text style={[styles.genderText, gender === 'male' && styles.genderTextActive]}>
                 Male
               </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
-              style={[
-                styles.genderButton,
-                gender === 'female' && styles.genderButtonActive,
-              ]}
+              style={[styles.genderButton, gender === 'female' && styles.genderButtonActive]}
               onPress={() => setGender(gender === 'female' ? null : 'female')}
             >
               <Ionicons
@@ -342,12 +320,7 @@ export default function EditPetScreen() {
                 size={20}
                 color={gender === 'female' ? '#FFFFFF' : '#8B5CF6'}
               />
-              <Text
-                style={[
-                  styles.genderText,
-                  gender === 'female' && styles.genderTextActive,
-                ]}
-              >
+              <Text style={[styles.genderText, gender === 'female' && styles.genderTextActive]}>
                 Female
               </Text>
             </TouchableOpacity>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,148 +7,178 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { getCurrentPet, getChecklists, getReminders } from '../../services/localDb';
 
 // Format time from 24-hour (HH:MM) to 12-hour format (h:mm AM/PM)
 const formatTimeToAmPm = (time24: string): string => {
-  const [hoursStr, minutesStr] = time24.split(':');
-  const hours = parseInt(hoursStr, 10);
+  const parts = (time24 || '').split(':');
+  const hoursStr = parts[0] ?? '0';
+  const minutesStr = parts[1] ?? '00';
+
+  const hours = Number.parseInt(hoursStr, 10);
   const minutes = minutesStr || '00';
+
+  if (Number.isNaN(hours)) return time24;
+
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours % 12 || 12;
   return `${displayHours}:${minutes} ${ampm}`;
 };
 
-interface Pet {
+type Pet = {
   id: string;
   name: string;
   birth_date: string;
   pet_type: string;
-  custom_pet_type?: string;
-  breed?: string;
-  weight?: number;
-  photo?: string;
-}
+  custom_pet_type?: string | null;
+  breed?: string | null;
+  weight?: number | null;
+  photo?: string | null;
+};
 
-interface Checklist {
+type ChecklistItem = { id: string; text: string; completed: boolean };
+type Checklist = { id: string; title: string; category: string; items: ChecklistItem[] };
+
+type Reminder = {
   id: string;
   title: string;
-  category: string;
-  items: { id: string; text: string; completed: boolean }[];
-}
-
-interface Reminder {
-  id: string;
-  title: string;
-  reminder_time: string;
-  category: string;
-}
+  time: string; // localDb.ts uses `time`
+  category?: string | null;
+  is_active?: boolean;
+};
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
   const [pet, setPet] = useState<Pet | null>(null);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
     try {
-      const savedPet = await AsyncStorage.getItem('currentPet');
-      if (savedPet) {
-        const petData = JSON.parse(savedPet);
-        setPet(petData);
+      const current = await getCurrentPet();
+      setPet(current as any);
 
-        // Load checklists
-        const clRes = await fetch(`${API_URL}/api/checklists?pet_id=${petData.id}`);
-        if (clRes.ok) {
-          const data = await clRes.json();
-          setChecklists(data.slice(0, 3)); // Show top 3
-        }
-
-        // Load reminders
-        const remRes = await fetch(`${API_URL}/api/reminders?pet_id=${petData.id}`);
-        if (remRes.ok) {
-          const data = await remRes.json();
-          setReminders(data.slice(0, 3)); // Show top 3
-        }
+      if (!current) {
+        setChecklists([]);
+        setReminders([]);
+        return;
       }
-    } catch (e) {
-      console.error('Error loading data:', e);
+
+      const [allChecklists, allReminders] = await Promise.all([
+        getChecklists(),
+        getReminders(),
+      ]);
+
+      setChecklists((allChecklists as any[]).slice(0, 3));
+      setReminders((allReminders as any[]).slice(0, 3));
+    } finally {
+      setLoading(false);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      setLoading(true);
+      loadData().catch((e) => console.error('Error loading data:', e));
     }, [])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    try {
+      await loadData();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const getPetAge = (birthDate: string) => {
     const birth = new Date(birthDate);
     const now = new Date();
+
     const years = now.getFullYear() - birth.getFullYear();
     const months = now.getMonth() - birth.getMonth();
-    
-    if (years > 0) {
-      return `${years} year${years > 1 ? 's' : ''} old`;
-    } else if (months > 0) {
-      return `${months} month${months > 1 ? 's' : ''} old`;
-    } else {
-      const days = Math.floor((now.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
-      return `${days} day${days !== 1 ? 's' : ''} old`;
-    }
+
+    if (years > 0) return `${years} year${years > 1 ? 's' : ''} old`;
+    if (months > 0) return `${months} month${months > 1 ? 's' : ''} old`;
+
+    const days = Math.floor((now.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
+    return `${days} day${days !== 1 ? 's' : ''} old`;
   };
 
   const getPetIcon = (type: string) => {
     switch (type) {
-      case 'cat': return 'paw';
-      case 'bird': return 'leaf';
-      case 'other': return 'heart';
-      default: return 'paw';
+      case 'bird':
+        return 'leaf';
+      case 'other':
+        return 'heart';
+      case 'cat':
+      case 'dog':
+      default:
+        return 'paw';
     }
   };
 
-  const getPetDisplayType = (pet: Pet) => {
-    if (pet.pet_type === 'other' && pet.custom_pet_type) {
-      return pet.custom_pet_type.charAt(0).toUpperCase() + pet.custom_pet_type.slice(1);
+  const getPetDisplayType = (p: Pet) => {
+    if (p.pet_type === 'other' && p.custom_pet_type) {
+      const s = String(p.custom_pet_type);
+      return s.charAt(0).toUpperCase() + s.slice(1);
     }
-    return pet.pet_type.charAt(0).toUpperCase() + pet.pet_type.slice(1);
+    const s = String(p.pet_type);
+    return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = (category?: string | null) => {
     switch (category) {
-      case 'medication': return 'medical';
-      case 'feeding': return 'restaurant';
-      case 'walk': return 'walk';
-      case 'vet': return 'medkit';
-      default: return 'checkbox';
+      case 'medication':
+        return 'medical';
+      case 'feeding':
+        return 'restaurant';
+      case 'walk':
+        return 'walk';
+      case 'vet':
+        return 'medkit';
+      default:
+        return 'checkbox';
     }
   };
 
   const getCompletionRate = (items: { completed: boolean }[]) => {
     if (!items || items.length === 0) return 0;
-    const completed = items.filter(i => i.completed).length;
+    const completed = items.filter((i) => i.completed).length;
     return Math.round((completed / items.length) * 100);
   };
 
-  if (!pet) {
+  if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
         <Text style={styles.emptyText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // No pet selected/created yet
+  if (!pet) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+        <Ionicons name="paw-outline" size={56} color="#D1D5DB" />
+        <Text style={[styles.emptyText, { marginTop: 12 }]}>No pet selected</Text>
+
+        <TouchableOpacity
+          style={[styles.emptyCardButton, { marginTop: 14 }]}
+          onPress={() => router.replace('/')}
+        >
+          <Text style={styles.emptyCardButtonText}>Go to start</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -167,10 +197,8 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Good day!</Text>
           <Text style={styles.headerTitle}>{pet.name}'s Dashboard</Text>
         </View>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push('/edit-pet')}
-        >
+
+        <TouchableOpacity style={styles.editButton} onPress={() => router.push('/edit-pet')}>
           <Ionicons name="create-outline" size={24} color="#8B5CF6" />
         </TouchableOpacity>
       </View>
@@ -186,6 +214,7 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
         <View style={styles.petInfo}>
           <Text style={styles.petName}>{pet.name}</Text>
           <Text style={styles.petDetails}>
@@ -199,40 +228,28 @@ export default function HomeScreen() {
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/add-checklist')}
-        >
+        <TouchableOpacity style={styles.quickActionButton} onPress={() => router.push('/add-checklist')}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#EDE9FE' }]}>
             <Ionicons name="add" size={24} color="#8B5CF6" />
           </View>
           <Text style={styles.quickActionText}>Checklist</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/add-vet-visit')}
-        >
+        <TouchableOpacity style={styles.quickActionButton} onPress={() => router.push('/add-vet-visit')}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#FCE7F3' }]}>
             <Ionicons name="medical" size={24} color="#EC4899" />
           </View>
           <Text style={styles.quickActionText}>Vet Visit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/add-reminder')}
-        >
+        <TouchableOpacity style={styles.quickActionButton} onPress={() => router.push('/add-reminder')}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#DBEAFE' }]}>
             <Ionicons name="notifications" size={24} color="#3B82F6" />
           </View>
           <Text style={styles.quickActionText}>Reminder</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/(tabs)/ai')}
-        >
+        <TouchableOpacity style={styles.quickActionButton} onPress={() => router.push('/(tabs)/ai')}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#D1FAE5' }]}>
             <Ionicons name="sparkles" size={24} color="#10B981" />
           </View>
@@ -253,10 +270,7 @@ export default function HomeScreen() {
           <View style={styles.emptyCard}>
             <Ionicons name="checkbox-outline" size={40} color="#D1D5DB" />
             <Text style={styles.emptyCardText}>No checklists yet</Text>
-            <TouchableOpacity
-              style={styles.emptyCardButton}
-              onPress={() => router.push('/add-checklist')}
-            >
+            <TouchableOpacity style={styles.emptyCardButton} onPress={() => router.push('/add-checklist')}>
               <Text style={styles.emptyCardButtonText}>Create one</Text>
             </TouchableOpacity>
           </View>
@@ -270,12 +284,14 @@ export default function HomeScreen() {
               <View style={styles.checklistIcon}>
                 <Ionicons name={getCategoryIcon(cl.category) as any} size={20} color="#8B5CF6" />
               </View>
+
               <View style={styles.checklistInfo}>
                 <Text style={styles.checklistTitle}>{cl.title}</Text>
                 <Text style={styles.checklistProgress}>
-                  {cl.items.filter(i => i.completed).length}/{cl.items.length} completed
+                  {cl.items.filter((i) => i.completed).length}/{cl.items.length} completed
                 </Text>
               </View>
+
               <View style={styles.progressCircle}>
                 <Text style={styles.progressText}>{getCompletionRate(cl.items)}%</Text>
               </View>
@@ -297,10 +313,7 @@ export default function HomeScreen() {
           <View style={styles.emptyCard}>
             <Ionicons name="notifications-outline" size={40} color="#D1D5DB" />
             <Text style={styles.emptyCardText}>No reminders set</Text>
-            <TouchableOpacity
-              style={styles.emptyCardButton}
-              onPress={() => router.push('/add-reminder')}
-            >
+            <TouchableOpacity style={styles.emptyCardButton} onPress={() => router.push('/add-reminder')}>
               <Text style={styles.emptyCardButtonText}>Add reminder</Text>
             </TouchableOpacity>
           </View>
@@ -310,9 +323,10 @@ export default function HomeScreen() {
               <View style={styles.reminderIcon}>
                 <Ionicons name={getCategoryIcon(rem.category) as any} size={18} color="#3B82F6" />
               </View>
+
               <View style={styles.reminderInfo}>
                 <Text style={styles.reminderTitle}>{rem.title}</Text>
-                <Text style={styles.reminderTime}>{formatTimeToAmPm(rem.reminder_time)}</Text>
+                <Text style={styles.reminderTime}>{formatTimeToAmPm(rem.time)}</Text>
               </View>
             </View>
           ))
