@@ -45,3 +45,6 @@ app-example
 pawslife-production.aab
 eas.json.save
 app/*.code-search
+
+# Metro cache
+.metro-cache/

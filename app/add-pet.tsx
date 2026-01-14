@@ -14,9 +14,8 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { addPet, setCurrentPetId } from '../services/localDb';
 
 export default function AddPetScreen() {
   const router = useRouter();
@@ -49,28 +48,31 @@ export default function AddPetScreen() {
       return;
     }
 
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(birthDate)) {
+      Alert.alert('Invalid Date', 'Please enter date in YYYY-MM-DD format');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/pets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          birth_date: birthDate,
-          pet_type: petType,
-          breed: breed.trim() || null,
-        }),
+      const pet = await addPet({
+        name: name.trim(),
+        birth_date: birthDate,
+        pet_type: petType,
+        custom_pet_type: petType === 'other' ? null : null,
+        breed: breed.trim() || null,
+        weight: null,
+        gender: null,
+        photo: null,
       });
 
-      if (response.ok) {
-        const pet = await response.json();
-        await AsyncStorage.setItem('currentPet', JSON.stringify(pet));
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Error', 'Could not create pet profile');
-      }
+      await setCurrentPetId(pet.id);
+      router.replace('/(tabs)');
     } catch (e) {
-      Alert.alert('Error', 'Could not connect to server');
+      console.error('Error creating pet (local):', e);
+      Alert.alert('Error', 'Could not create pet profile');
     } finally {
       setLoading(false);
     }
@@ -89,10 +91,7 @@ export default function AddPetScreen() {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Pet Name</Text>
           <TextInput

@@ -1,3 +1,5 @@
+// app/add-reminder.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -15,27 +17,25 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-// Get API URL from environment - fallback for mobile compatibility
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { addReminder, getCurrentPet, type Reminder } from '../services/localDb';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Log API URL on mount for debugging
-if (__DEV__) {
-  console.log('[AddReminder] Using API_URL:', API_URL);
-}
-
+// ✅ Notification handler (typed for newer Expo)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
-// Alarm sounds data
+// Alarm sounds data (UI choice). iOS scheduled notifications will still use `sound: "default"`
+// unless you add custom bundled sound files later.
 const ALARM_SOUNDS = [
   { id: 'dog', name: 'Dog', icon: 'paw' },
   { id: 'cat', name: 'Cat', icon: 'paw' },
@@ -52,18 +52,21 @@ const ALARM_SOUNDS = [
 export default function AddReminderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
   const [loading, setLoading] = useState(false);
-  const [petId, setPetId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [petName, setPetName] = useState('');
+
+  const [petId, setPetId] = useState<string>('');
+  const [petName, setPetName] = useState<string>('');
+
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedTime, setSelectedTime] = useState(new Date());
+  const [description, setDescription] = useState(''); // UI only (not stored in localDb)
+  const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
+
   const [category, setCategory] = useState('general');
   const [isRecurring, setIsRecurring] = useState(true);
-  const [selectedDays, setSelectedDays] = useState([0, 1, 2, 3, 4, 5, 6]);
-  const [selectedSound, setSelectedSound] = useState(ALARM_SOUNDS[0]);
+  const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
   const categories = [
     { id: 'medication', label: 'Medication', icon: 'medical', color: '#EC4899' },
@@ -73,53 +76,63 @@ export default function AddReminderScreen() {
   ];
 
   const days = [
-    { id: 0, label: 'S' },
+    { id: 0, label: 'S' }, // Sun
     { id: 1, label: 'M' },
     { id: 2, label: 'T' },
     { id: 3, label: 'W' },
     { id: 4, label: 'T' },
     { id: 5, label: 'F' },
-    { id: 6, label: 'S' },
+    { id: 6, label: 'S' }, // Sat
   ];
 
   useEffect(() => {
-    loadPet();
-    requestNotificationPermission();
-    // Set default time to current time rounded to nearest 5 minutes
+    // Default time: round up to nearest 5 minutes
     const now = new Date();
     now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5);
     now.setSeconds(0);
+    now.setMilliseconds(0);
     setSelectedTime(now);
+
+    void loadPet();
+    void requestNotificationPermission();
   }, []);
 
-  // Load selected sound from navigation params
+  // Load selected sound from AsyncStorage (set by alarm-sounds screen)
   useFocusEffect(
     useCallback(() => {
       const loadSelectedSound = async () => {
         const soundId = await AsyncStorage.getItem('selectedAlarmSound');
         if (soundId) {
-          const sound = ALARM_SOUNDS.find(s => s.id === soundId);
-          if (sound) {
-            setSelectedSound(sound);
-          }
+          const sound = ALARM_SOUNDS.find((s) => s.id === soundId);
+          if (sound) setSelectedSound(sound);
           await AsyncStorage.removeItem('selectedAlarmSound');
         }
       };
-      loadSelectedSound();
+      void loadSelectedSound();
     }, [])
   );
 
   const loadPet = async () => {
-    const savedPet = await AsyncStorage.getItem('currentPet');
-    if (savedPet) {
-      const pet = JSON.parse(savedPet);
+    const pet = await getCurrentPet();
+    if (pet) {
       setPetId(pet.id);
       setPetName(pet.name);
+    } else {
+      // No pet selected — go back safely
+      Alert.alert('No Pet Selected', 'Please select or create a pet first.');
+      router.back();
     }
   };
 
   const requestNotificationPermission = async () => {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true, // ✅ critical for sound
+      },
+    });
+
     if (status !== 'granted') {
       Alert.alert(
         'Notifications Disabled',
@@ -130,9 +143,7 @@ export default function AddReminderScreen() {
 
   const toggleDay = (dayId: number) => {
     if (selectedDays.includes(dayId)) {
-      if (selectedDays.length > 1) {
-        setSelectedDays(selectedDays.filter(d => d !== dayId));
-      }
+      if (selectedDays.length > 1) setSelectedDays(selectedDays.filter((d) => d !== dayId));
     } else {
       setSelectedDays([...selectedDays, dayId].sort());
     }
@@ -150,143 +161,136 @@ export default function AddReminderScreen() {
   const getTimeString = (date: Date) => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    return `${hours}:${minutes}`; // "HH:MM"
   };
 
-  const onTimeChange = (event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
-    if (date) {
-      setSelectedTime(date);
-    }
+  const onTimeChange = (_event: any, date?: Date) => {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+    if (date) setSelectedTime(date);
   };
 
-  const scheduleNotification = async (reminder: any) => {
-    const [hours, minutes] = reminder.reminder_time.split(':').map(Number);
-    
-    if (isRecurring) {
-      for (const day of selectedDays) {
+  // Map 0..6 (Sun..Sat) -> iOS/Expo weekday 1..7 (Sun..Sat)
+  const toExpoWeekday = (day0to6: number) => (day0to6 === 0 ? 1 : day0to6 + 1);
+
+  // ✅ Schedule notifications using UI state (NOT Reminder type)
+  const scheduleNotification = async (args: {
+    reminderId: string;
+    title: string;
+    body?: string | null;
+    time: string; // "HH:MM"
+    isRecurring: boolean;
+    selectedDays: number[]; // 0-6 (Sun-Sat)
+    petName: string;
+    soundId: string; // we keep this in data for future custom sounds
+  }) => {
+    const [hour, minute] = (args.time || '00:00').split(':').map((n) => Number(n));
+
+    const notifTitle = `${args.petName}: ${args.title}`;
+    const notifBody = args.body?.trim() || `Time for ${args.title}!`;
+
+    if (args.isRecurring) {
+      const daysToUse =
+        (args.selectedDays || []).length ? args.selectedDays : [0, 1, 2, 3, 4, 5, 6];
+
+      for (const day0to6 of daysToUse) {
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `${petName}: ${reminder.title}`,
-            body: reminder.description || `Time for ${reminder.title}!`,
-            data: { reminderId: reminder.id, sound: selectedSound.id },
+            title: notifTitle,
+            body: notifBody,
+            sound: 'default', // ✅ ensures audible iOS notification sound (if device not muted/DND)
+            data: { reminderId: args.reminderId, sound: args.soundId },
           },
           trigger: {
-            weekday: day + 1,
-            hour: hours,
-            minute: minutes,
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            weekday: toExpoWeekday(day0to6),
+            hour,
+            minute,
             repeats: true,
           },
         });
       }
-    } else {
-      const now = new Date();
-      const notificationDate = new Date();
-      notificationDate.setHours(hours, minutes, 0, 0);
-      
-      if (notificationDate <= now) {
-        notificationDate.setDate(notificationDate.getDate() + 1);
-      }
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `${petName}: ${reminder.title}`,
-          body: reminder.description || `Time for ${reminder.title}!`,
-          data: { reminderId: reminder.id, sound: selectedSound.id },
-        },
-        trigger: notificationDate,
-      });
-    }
-  };
-
-  const handleSave = async () => {
-    if (!title.trim()) {
-      setErrorMessage('Please enter a title');
       return;
     }
 
-    // Clear any previous error
-    setErrorMessage(null);
-    setLoading(true);
-    
-    // Build the full API URL
-    const apiEndpoint = `${API_URL}/api/reminders`;
-    
-    if (__DEV__) {
-      console.log('[AddReminder] Creating reminder at:', apiEndpoint);
-      console.log('[AddReminder] Pet ID:', petId);
+    // One-time: next occurrence (today or tomorrow)
+    const now = new Date();
+    const notificationDate = new Date();
+    notificationDate.setSeconds(0, 0);
+    notificationDate.setHours(hour, minute, 0, 0);
+
+    if (notificationDate <= now) {
+      notificationDate.setDate(notificationDate.getDate() + 1);
     }
-    
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: notifTitle,
+        body: notifBody,
+        sound: 'default', // ✅ ensures audible iOS notification sound (if device not muted/DND)
+        data: { reminderId: args.reminderId, sound: args.soundId },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: notificationDate,
+      },
+    });
+  };
+
+const handleSave = async () => {
+  if (!title.trim()) {
+    setErrorMessage('Please enter a title');
+    return;
+  }
+  if (!petId) {
+    setErrorMessage('No pet selected.');
+    return;
+  }
+
+  setErrorMessage(null);
+  setLoading(true);
+
+  try {
+    const reminderTime = getTimeString(selectedTime);
+
+    const dbPayload = {
+      pet_id: petId,
+      title: title.trim(),
+      category,
+      time: reminderTime,
+      recurrence_days: isRecurring ? selectedDays : [],
+      is_active: true,
+    };
+
+    // ✅ Create reminder ONCE (and keep returned object)
+    const created = await addReminder(dbPayload);
+
+    // ✅ Schedule notification (non-blocking) — default sound
     try {
-      const reminderTime = getTimeString(selectedTime);
-      const payload = {
-        pet_id: petId,
-        title: title.trim(),
-        description: description.trim() || null,
-        reminder_time: reminderTime,
-        category,
-        is_recurring: isRecurring,
-        recurrence_days: selectedDays,
-      };
-      
-      if (__DEV__) {
-        console.log('[AddReminder] Payload:', JSON.stringify(payload));
-      }
-      
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await scheduleNotification({
+        reminderId: created.id,
+        title: created.title,
+        body: (description || '').trim() || null,
+        time: created.time, // "HH:MM"
+        isRecurring,
+        selectedDays: isRecurring ? selectedDays : [],
+        petName,
+        soundId: 'default',
       });
-
-      if (__DEV__) {
-        console.log('[AddReminder] Response status:', response.status);
-      }
-
-      if (response.ok) {
-        const reminder = await response.json();
-        if (__DEV__) {
-          console.log('[AddReminder] Reminder created successfully:', reminder.id);
-        }
-        
-        // Schedule notification separately - don't let notification errors affect the flow
-        try {
-          await scheduleNotification(reminder);
-          if (__DEV__) {
-            console.log('[AddReminder] Notification scheduled');
-          }
-        } catch (notifError: any) {
-          // Notification scheduling failed, but reminder was created successfully
-          if (__DEV__) {
-            console.log('[AddReminder] Notification scheduling failed (non-critical):', notifError.message);
-          }
-        }
-        
-        // Reminder was created successfully - navigate back
-        router.back();
-      } else {
-        const errorText = await response.text();
-        if (__DEV__) {
-          console.log('[AddReminder] Server error:', errorText);
-        }
-        setErrorMessage('Could not create reminder. Please try again.');
-      }
-    } catch (e: any) {
-      if (__DEV__) {
-        console.log('[AddReminder] Network error:', e.message);
-        console.log('[AddReminder] API URL was:', apiEndpoint);
-      }
-      setErrorMessage('Connection failed. Please check your internet connection.');
-    } finally {
-      setLoading(false);
+    } catch (notifErr) {
+      if (__DEV__) console.log('[AddReminder] Notification scheduling failed:', notifErr);
     }
-  };
 
-  const openSoundSelection = () => {
-    router.push('/alarm-sounds');
-  };
+    router.back();
+  } catch (e) {
+    if (__DEV__) console.log('[AddReminder] Save failed:', e);
+    setErrorMessage('Could not create reminder.');
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  
 
   return (
     <KeyboardAvoidingView
@@ -331,10 +335,7 @@ export default function AddReminderScreen() {
         {/* Time Picker */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Time</Text>
-          <TouchableOpacity
-            style={styles.timePickerButton}
-            onPress={() => setShowTimePicker(true)}
-          >
+          <TouchableOpacity style={styles.timePickerButton} onPress={() => setShowTimePicker(true)}>
             <Ionicons name="time-outline" size={24} color="#8B5CF6" />
             <Text style={styles.timeText}>{formatTime(selectedTime)}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -361,12 +362,7 @@ export default function AddReminderScreen() {
 
         {/* Android picker modal */}
         {Platform.OS === 'android' && showTimePicker && (
-          <DateTimePicker
-            value={selectedTime}
-            mode="time"
-            display="default"
-            onChange={onTimeChange}
-          />
+          <DateTimePicker value={selectedTime} mode="time" display="default" onChange={onTimeChange} />
         )}
 
         {/* Web fallback time picker */}
@@ -392,10 +388,10 @@ export default function AddReminderScreen() {
                     placeholder="HH"
                     value={selectedTime.getHours().toString().padStart(2, '0')}
                     onChangeText={(text) => {
-                      const hours = parseInt(text) || 0;
-                      if (hours >= 0 && hours <= 23) {
+                      const h = parseInt(text) || 0;
+                      if (h >= 0 && h <= 23) {
                         const newTime = new Date(selectedTime);
-                        newTime.setHours(hours);
+                        newTime.setHours(h);
                         setSelectedTime(newTime);
                       }
                     }}
@@ -408,42 +404,22 @@ export default function AddReminderScreen() {
                     placeholder="MM"
                     value={selectedTime.getMinutes().toString().padStart(2, '0')}
                     onChangeText={(text) => {
-                      const minutes = parseInt(text) || 0;
-                      if (minutes >= 0 && minutes <= 59) {
+                      const m = parseInt(text) || 0;
+                      if (m >= 0 && m <= 59) {
                         const newTime = new Date(selectedTime);
-                        newTime.setMinutes(minutes);
+                        newTime.setMinutes(m);
                         setSelectedTime(newTime);
                       }
                     }}
                   />
                 </View>
-                <TouchableOpacity
-                  style={styles.webPickerDoneButton}
-                  onPress={() => setShowTimePicker(false)}
-                >
+                <TouchableOpacity style={styles.webPickerDoneButton} onPress={() => setShowTimePicker(false)}>
                   <Text style={styles.webPickerDoneText}>Done</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
           </Modal>
         )}
-
-        {/* Alarm Sound Selection */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Alarm Sound</Text>
-          <TouchableOpacity
-            style={styles.soundSelectButton}
-            onPress={openSoundSelection}
-          >
-            <View style={styles.soundSelectLeft}>
-              <View style={styles.soundIconContainer}>
-                <Ionicons name={selectedSound.icon as any} size={20} color="#8B5CF6" />
-              </View>
-              <Text style={styles.soundName}>{selectedSound.name}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Category</Text>
@@ -462,12 +438,7 @@ export default function AddReminderScreen() {
                   size={18}
                   color={category === cat.id ? '#FFFFFF' : cat.color}
                 />
-                <Text
-                  style={[
-                    styles.categoryText,
-                    { color: category === cat.id ? '#FFFFFF' : cat.color },
-                  ]}
-                >
+                <Text style={[styles.categoryText, { color: category === cat.id ? '#FFFFFF' : cat.color }]}>
                   {cat.label}
                 </Text>
               </TouchableOpacity>
@@ -475,10 +446,7 @@ export default function AddReminderScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.recurringOption}
-          onPress={() => setIsRecurring(!isRecurring)}
-        >
+        <TouchableOpacity style={styles.recurringOption} onPress={() => setIsRecurring(!isRecurring)}>
           <View style={styles.recurringLeft}>
             <Ionicons name="repeat" size={24} color="#8B5CF6" />
             <View>
@@ -500,18 +468,10 @@ export default function AddReminderScreen() {
               {days.map((day) => (
                 <TouchableOpacity
                   key={day.id}
-                  style={[
-                    styles.dayButton,
-                    selectedDays.includes(day.id) && styles.dayButtonActive,
-                  ]}
+                  style={[styles.dayButton, selectedDays.includes(day.id) && styles.dayButtonActive]}
                   onPress={() => toggleDay(day.id)}
                 >
-                  <Text
-                    style={[
-                      styles.dayText,
-                      selectedDays.includes(day.id) && styles.dayTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.dayText, selectedDays.includes(day.id) && styles.dayTextActive]}>
                     {day.label}
                   </Text>
                 </TouchableOpacity>
@@ -522,7 +482,6 @@ export default function AddReminderScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        {/* Inline Error Message */}
         {errorMessage && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={18} color="#EF4444" />
@@ -532,17 +491,13 @@ export default function AddReminderScreen() {
             </TouchableOpacity>
           </View>
         )}
-        
+
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.disabledButton]}
           onPress={handleSave}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>Create Reminder</Text>
-          )}
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create Reminder</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -550,10 +505,7 @@ export default function AddReminderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -563,23 +515,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  content: {
-    padding: 16,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937' },
+  content: { padding: 16 },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
   input: {
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
@@ -600,19 +539,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  timeText: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginLeft: 12,
-  },
-  iosPickerContainer: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
+  timeText: { flex: 1, fontSize: 18, fontWeight: '600', color: '#1F2937', marginLeft: 12 },
+  iosPickerContainer: { backgroundColor: '#F9FAFB', borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
   iosPickerHeader: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -621,38 +549,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  iosPickerDone: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8B5CF6',
-  },
-  iosPicker: {
-    height: 180,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  webPickerContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    width: 280,
-    alignItems: 'center',
-  },
-  webPickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 20,
-  },
-  webTimeInputs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+  iosPickerDone: { fontSize: 16, fontWeight: '600', color: '#8B5CF6' },
+  iosPicker: { height: 180 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  webPickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: 280, alignItems: 'center' },
+  webPickerTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 20 },
+  webTimeInputs: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
   webTimeInput: {
     width: 70,
     height: 60,
@@ -663,23 +565,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#1F2937',
   },
-  webTimeSeparator: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginHorizontal: 8,
-  },
-  webPickerDoneButton: {
-    backgroundColor: '#8B5CF6',
-    paddingVertical: 12,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-  },
-  webPickerDoneText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
+  webTimeSeparator: { fontSize: 32, fontWeight: '600', color: '#1F2937', marginHorizontal: 8 },
+  webPickerDoneButton: { backgroundColor: '#8B5CF6', paddingVertical: 12, paddingHorizontal: 48, borderRadius: 12 },
+  webPickerDoneText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   soundSelectButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -691,10 +579,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  soundSelectLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  soundSelectLeft: { flexDirection: 'row', alignItems: 'center' },
   soundIconContainer: {
     width: 36,
     height: 36,
@@ -704,16 +589,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  soundName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
-  },
-  categoriesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  soundName: { fontSize: 16, fontWeight: '500', color: '#1F2937' },
+  categoriesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -724,10 +601,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     gap: 6,
   },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  categoryText: { fontSize: 13, fontWeight: '500' },
   recurringOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -739,20 +613,9 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     marginBottom: 20,
   },
-  recurringLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  recurringTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  recurringSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
+  recurringLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recurringTitle: { fontSize: 15, fontWeight: '600', color: '#1F2937' },
+  recurringSubtitle: { fontSize: 12, color: '#6B7280' },
   toggle: {
     width: 28,
     height: 28,
@@ -762,56 +625,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  toggleActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
-  },
-  daysContainer: {
-    marginBottom: 20,
-  },
-  daysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dayButtonActive: {
-    backgroundColor: '#8B5CF6',
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  dayTextActive: {
-    color: '#FFFFFF',
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  saveButton: {
-    backgroundColor: '#8B5CF6',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
+  toggleActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
+  daysContainer: { marginBottom: 20 },
+  daysRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  dayButtonActive: { backgroundColor: '#8B5CF6' },
+  dayText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  dayTextActive: { color: '#FFFFFF' },
+  footer: { paddingHorizontal: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  saveButton: { backgroundColor: '#8B5CF6', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  saveButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  disabledButton: { opacity: 0.7 },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -822,9 +646,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
-  errorText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#DC2626',
-  },
+  errorText: { flex: 1, fontSize: 14, color: '#DC2626' },
 });
+function setSelectedSound(sound: { id: string; name: string; icon: string; }) {
+  throw new Error('Function not implemented.');
+}
+
