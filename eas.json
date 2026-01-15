@@ -4,6 +4,15 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "development": {
+      "ios": {
+        "developmentClient": true,
+        "distribution": "internal"
+      },
+      "env": {
+        "EXPO_NO_DOCTOR": "1"
+      }
     }
   },
   "submit": {

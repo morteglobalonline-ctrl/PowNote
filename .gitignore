@@ -1,75 +1,55 @@
 # dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Expo
+# Expo / React Native
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
+# Metro / caches
+.metro-health-check*
+.metro-cache/
+.cache/
+
+# native / secrets
+android/
+ios/
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.pem
 
-# Metro / caches
-.metro-cache/
-.metro-health-check*
-.cache/
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-.pnpm-debug.log*
+# env
+.env
+.env.*
+.env*.local
 
 # macOS
 .DS_Store
 
-# env
-*.env
-*.env.*
-.env*.local
-
-# typescript
+# TypeScript
 *.tsbuildinfo
 
-<<<<<<< HEAD
-# build outputs
-/build
-/.next/
-/out/
+# archives / big files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.aab
+*.apk
 
-# misc secrets
-*token.json*
-*credentials.json*
+# IDE
+.idea/
+.vscode/
 
-# archives
-**/*.zip
-**/*.tar.gz
-**/*.tar
-**/*.tgz
-
-# vercel
-.vercel
-=======
-app-example
-
-# Expo/Metro cache
-.metro-cache/
-
-# Local / temp files
-pawslife-production.aab
-eas.json.save
-app/*.code-search
-<<<<<<< HEAD
->>>>>>> a22151d (Fix iOS permissions, clean metro cache, and bump build to 13)
-=======
-
-# Metro cache
-.metro-cache/
->>>>>>> 383d496 (Fix local-only pet storage and stabilize reminder notifications)
+# misc
+*.orig.*
